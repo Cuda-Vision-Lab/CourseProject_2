@@ -3,9 +3,9 @@ import numpy as np
 import torch.nn as nn
 import torch
 import random
+import logging
 import json
 from matplotlib import pyplot as plt
-
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -45,22 +45,55 @@ def smooth(f, K=5):
     return smooth_f
 
 
-def save_model(model, optimizer, epoch, stats, experiment_name):
-    """ Saving model checkpoint """
+def save_model(model, optimizer, epoch, stats, experiment_name, path, save_type="checkpoint", training_mode="Autoencoder"):
+    """ 
+    model checkpoint saving 
+    """
+    import os
     
-    if(not os.path.exists("checkpoints")):
-        os.makedirs("checkpoints")
-    savepath = f"checkpoints/checkpoint_{experiment_name}.pth"
-
-    torch.save({
+    # Ensure directory exists
+    os.makedirs(path, exist_ok=True)
+    
+    checkpoint_data = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'stats': stats
-    }, savepath)
-    return
+        'stats': stats,
+        'save_type': save_type,
+        'training_mode': training_mode,
+        'experiment_name': experiment_name
+    }
+    
+    # Add state dicts based on training mode
+    if training_mode == "Autoencoder" and hasattr(model, 'encoder') and hasattr(model, 'decoder'):
+        checkpoint_data['encoder_state_dict'] = model.encoder.state_dict()
+        checkpoint_data['decoder_state_dict'] = model.decoder.state_dict()
+    elif training_mode == "Predictor" and hasattr(model, 'predictor'):
+        checkpoint_data['predictor_state_dict'] = model.predictor.state_dict()
+    
+    # Add lr
+    if hasattr(optimizer, 'param_groups'):
+        checkpoint_data['learning_rate'] = optimizer.param_groups[0]['lr']
+    
+    try:
+        if save_type == "final":
+            savepath = f"{path}/final_{experiment_name}.pth"
+        elif save_type == "best":
+            savepath = f"{path}/best_{experiment_name}.pth"
+        else:
+            # Periodic checkpoint 
+            savepath = f"{path}/checkpoint_{experiment_name}_epoch_{epoch:04d}.pth"
+        
+        torch.save(checkpoint_data, savepath)
+                     
+        logging.info(f"Saved {save_type} checkpoint: {savepath}\n")
+        return savepath
+        
+    except Exception as e:
+        logging.error(f"Failed to save checkpoint: {e}")
+        return None
 
-def save_config(config, exp_path):
+def save_config(config, path, experiment_name):
     """
     Saves the config (dict or config.py module) as a JSON file in the given path.
 
@@ -68,13 +101,9 @@ def save_config(config, exp_path):
         config: Either a config dictionary or a config.py module (with attributes).
         path: The file path where the JSON should be saved.
     """
-
-    # Ensure the directory exists
-    dir_name = os.path.join(exp_path,'config')
-    if dir_name and not os.path.exists(dir_name):
-        os.makedirs(dir_name, exist_ok=True)
-
-    with open(dir_name, "w") as f:
+    config_name = f"{experiment_name}.json"
+    path = os.path.join(path, config_name)
+    with open(path, "w") as f:
         json.dump(config, f, indent=4)
     return
 
@@ -113,6 +142,8 @@ class TensorboardWriter:
     -----
     logdir: string
         path where the tensorboard logs will be stored
+        
+    This code is adapted from https://github.com/AIS-Bonn/OCVP-object-centric-video-prediction/tree/master
     """
 
     def __init__(self, logdir):
@@ -141,7 +172,7 @@ class TensorboardWriter:
         """ Adding a whole new figure to the tensorboard """
         self.writer.add_figure(tag=tag, figure=figure, global_step=step)
         return
-
+    
     def add_graph(self, model, input):
         """ Logging model graph to tensorboard """
         self.writer.add_graph(model, input_to_model=input)
