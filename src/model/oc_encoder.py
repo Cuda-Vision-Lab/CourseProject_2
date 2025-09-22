@@ -155,8 +155,8 @@ class ObjectCentricEncoder(baseTransformer):
                 # Apply masking to masks
                 mask_masked, mask_mask, mask_ids_restore = self.random_masking(mask_tokens, mask_ratio= self.mask_ratio)
                 all_tokens.append(mask_masked)
-                all_masks["mask"] = mask_mask
-                all_ids_restore["mask"] = mask_ids_restore
+                # all_masks["mask"] = mask_mask
+                # all_ids_restore["mask"] = mask_ids_restore
             
             # Process bounding boxes if provided
             if self.use_bboxes and bboxes is not None:
@@ -170,8 +170,8 @@ class ObjectCentricEncoder(baseTransformer):
                 # Apply masking to bboxes
                 bbox_masked, bbox_mask, bbox_ids_restore = self.random_masking(bbox_tokens, mask_ratio= self.mask_ratio)
                 all_tokens.append(bbox_masked)
-                all_masks["bbox"] = bbox_mask
-                all_ids_restore["bbox"] = bbox_ids_restore
+                # all_masks["bbox"] = bbox_mask
+                # all_ids_restore["bbox"] = bbox_ids_restore
 
         else:
             # no masking in inference and predictor training mode
@@ -188,8 +188,8 @@ class ObjectCentricEncoder(baseTransformer):
                 mask_tokens = mask_tokens + modality_emb
                 
                 all_tokens.append(mask_tokens)
-                all_masks["mask"] = torch.zeros(B, T, mask_tokens.shape[2], device=mask_tokens.device)
-                all_ids_restore["mask"] = torch.arange(mask_tokens.shape[2], device=mask_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
+                # all_masks["mask"] = torch.zeros(B, T, mask_tokens.shape[2], device=mask_tokens.device)
+                # all_ids_restore["mask"] = torch.arange(mask_tokens.shape[2], device=mask_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
             
             if self.use_bboxes and bboxes is not None:
                 bbox_tokens = self.bbox_encoder(bboxes)
@@ -200,8 +200,8 @@ class ObjectCentricEncoder(baseTransformer):
                 bbox_tokens = bbox_tokens + modality_emb
                 
                 all_tokens.append(bbox_tokens)
-                all_masks["bbox"] = torch.zeros(B, T, bbox_tokens.shape[2], device=bbox_tokens.device)
-                all_ids_restore["bbox"] = torch.arange(bbox_tokens.shape[2], device=bbox_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
+                # all_masks["bbox"] = torch.zeros(B, T, bbox_tokens.shape[2], device=bbox_tokens.device)
+                # all_ids_restore["bbox"] = torch.arange(bbox_tokens.shape[2], device=bbox_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
                 
         
         # Concatenate all tokens
