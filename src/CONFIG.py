@@ -26,13 +26,15 @@ config = {
                             'shuffle': False,
                             'transforms': None
                                     },
-                        'num_epochs':50,
+                        'num_epochs':100,
                         
                         'model_name' : 'maevit1',
                         
                         'lr' : 1e-4,
                         
-                        'root' : '/home/user/soltania1/CudaVisionSS2025/src/CourseProject/src',
+                        'save_frequency': 50,
+                        
+                        'root' : '/home/user/soltania1/CourseProject_2/src',
                         },
          
             'vit_cfg': {
