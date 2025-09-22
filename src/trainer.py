@@ -22,23 +22,16 @@ def get_encoder(scene_rep, mode, mask_ratio ):
     
 if __name__ == "__main__":
     
-    parser = argparse.ArgumentParser(
-        description="Trainer for Autoencoder, Predictor, and Inference modes. Options:\n"
-                    "  -a,  --ae         Enable autoencoder training mode\n"
-                    "  -p,  --predictor  Enable predictor training mode\n"
-                    "  -i,  --inference  Enable end-to-end inference mode\n"
-                    "  -ac, --ackpt      Checkpoint path to pretrained autoencoder\n"
-                    "  -pc, --pckpt      Checkpoint path to pretrained predictor"
-                    "  -s,  --scene_rep  Select scene representation type. Options: holistic, oc"
-    )
-    parser.add_argument('-a',   '--ae', action='store_false', help='Enable autoencoder training mode')
-    parser.add_argument('-p',   '--predictor', action='store_false', help='Enable predictor training mode')
-    parser.add_argument('-i',   '--inference', action='store_false', help='Enable end-to-end inference mode')
+    parser = argparse.ArgumentParser( description="Trainer for Autoencoder, Predictor, and Inference modes. Options:\n")
+    parser.add_argument('-a',   '--ae', action='store_true', help='Enable autoencoder training mode')
+    parser.add_argument('-p',   '--predictor', action='store_true', help='Enable predictor training mode')
+    parser.add_argument('-i',   '--inference', action='store_true', help='Enable end-to-end inference mode')
     parser.add_argument('-ac',  '--ackpt', help='Checkpoint path to pretrained autoencoder')
     parser.add_argument('-pc',  '--pckpt', help='Checkpoint path to pretrained predictor')
-    parser.add_argument('-s',   '--scene_rep', help='Scene representation type. Options: holistic, oc')
+    parser.add_argument('-s',   '--scene_rep', default='holistic', choices=['holistic', 'oc'], help='Scene representation type (default: holistic)')
     
     parser.print_help()
+
     args = parser.parse_args()
     
     logging.info(f"Training configuration:")
@@ -59,9 +52,11 @@ if __name__ == "__main__":
         
         model = TransformerAutoEncoder(encoder, decoder)
         
+        training_mode = "Autoencoder"
+        
         #Train and save encoder and decoder checkpoints
-        # trainer.setup_model(model=model)
-        # trainer.train_model()
+        trainer.setup_model(model=model, mode=training_mode)
+        trainer.train_model()
               
     elif args.predictor:
         
@@ -77,6 +72,8 @@ if __name__ == "__main__":
         
         model = TransformerPredictor(encoder, predictor)
         model.encoder.requires_grad_(False)
+        
+        training_mode = "Predictor"
         
         # Load AE weights
         # ae_checkpoint = torch.load("ae_checkpoint.pth", map_location=device)
@@ -116,8 +113,8 @@ if __name__ == "__main__":
         
         # do inference and save results somewhere. 
         # some inference.py that takes the above models and do the inference
-        
+
     else:
-        raise ValueError("Please specify a valid mode.")
+        raise ValueError("Please specify a valid mode: --ae, --predictor, or --inference")
         
     
