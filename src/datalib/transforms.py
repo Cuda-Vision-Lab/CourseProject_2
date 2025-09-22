@@ -14,6 +14,11 @@ class ParameterCompose:
         self.base_seed = base_seed # the base seed used during training the model.
         self.current_sequence_idx = None # the index of the sequence in the dataset. This is used as a seed for consistent random decisions across different sequences.
         self.num_epochs = None # the number of epochs used during training the model. This is used as a seed for consistent random decisions across different epochs.
+        
+        # Create local random number generators to avoid interfering with global seeds
+        self.local_rng = random.Random(base_seed)
+        self.local_torch_rng = torch.Generator()
+        self.local_torch_rng.manual_seed(base_seed)
     
     def __call__(self, rgbs, masks, flows, coord):
         
@@ -33,23 +38,24 @@ class ParameterCompose:
         return rgbs, masks, flows, coord
 
     def _make_sequence_decisions(self):
-        """Make random decisions for this sequence"""
+        """Make random decisions for this sequence using local RNGs to avoid interfering with global seeds"""
         
         if self.current_sequence_idx is not None:
             # Semi-random seed: base_seed + sequence_idx + random component
             # Provides variety across epochs and sequences while maintaining sequence consistency
             max_epochs = self.num_epochs if self.num_epochs is not None else 100
-            epoch_random_component = random.randint(0, max_epochs)  # Add randomness for epoch diversity
+            epoch_random_component = self.local_rng.randint(0, max_epochs)  # Add randomness for epoch diversity
             sequence_seed = self.base_seed + self.current_sequence_idx + epoch_random_component
         else:
             max_epochs = self.num_epochs if self.num_epochs is not None else 100
-            sequence_seed = self.base_seed + random.randint(0, max_epochs)
+            sequence_seed = self.base_seed + self.local_rng.randint(0, max_epochs)
             
-        random.seed(sequence_seed)
-        torch.manual_seed(sequence_seed)
+        # Update local RNG seeds instead of global seeds
+        self.local_rng.seed(sequence_seed)
+        self.local_torch_rng.manual_seed(sequence_seed)
 
-        self.should_hflip = random.random() < 0.5 # 50% chance of horizontal flip
-        self.should_vflip = random.random() < 0.3 # 30% chance of vertical flip
+        self.should_hflip = self.local_rng.random() < 0.5 # 50% chance of horizontal flip
+        self.should_vflip = self.local_rng.random() < 0.3 # 30% chance of vertical flip
         
         
     def reset_sequence(self, sequence_idx=None, num_epochs=None):
