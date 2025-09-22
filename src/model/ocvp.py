@@ -22,11 +22,11 @@ class TransformerAutoEncoder(nn.Module):
         # Decode (only for image modality for now)
         recons, loss = self.decoder(
                                     encoded_features, 
-                                    all_masks['image'], 
-                                    all_ids_restore['image'], 
+                                    all_masks, 
+                                    all_ids_restore, 
                                     target=images
                                     )
-        return recons, loss, all_masks, all_ids_restore
+        return recons, loss
     
 class TransformerPredictor(nn.Module):
     
