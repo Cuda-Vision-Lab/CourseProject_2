@@ -11,13 +11,12 @@ logging.basicConfig(level=logging.INFO, format='[%(levelname)s] - %(message)s')
 
 class MOVIC(Dataset):
 
-    def __init__(self, data_path, split='train' ,transforms=None):
+    def __init__(self, data_path, split='train' ,transforms=None, num_epochs=None):
         data_directory=os.path.join(data_path, split)
         if not os.path.exists(data_directory):
             if not os.path.exists(os.path.abspath(data_directory)):
                 raise Exception("Dataset was not found!")
         
-        number_of_frames_per_video=24
         
         self.rgbs = self.collect_files(data_directory, 'rgb*.png', group_size=24)
         self.flows = self.collect_files(data_directory, 'flow*.png', group_size=24)
@@ -26,13 +25,13 @@ class MOVIC(Dataset):
         
         # Store transforms
         self.transforms = transforms
-
+        self.num_epochs = num_epochs
+        
         assert len(self.rgbs) == len(self.flows) == len(self.coords) == len(self.masks), "Data and annotations need to be of the same size"
 
         logging.info(f"{split.upper()} Data Loaded: Coordinates: {len(self.coords)}, Masks: {len(self.masks)}, RGB videos:  {len(self.rgbs)}, Flows:  {len(self.flows)}")
 
     def __getitem__(self, idx):
-        # return self.coord[idx], self.mask[idx], self.rgb[idx], self.flow[idx]
  
         rgb_paths = self.rgbs[idx]  # list of frame paths for the video frames = idx
         flow_paths = self.flows[idx]
@@ -46,8 +45,9 @@ class MOVIC(Dataset):
         # Apply transforms if provided
         if self.transforms:
             
-            # reset for new sequence
-            self.transforms.reset_sequence()
+            # reset for new sequence. every sequence gets a new random transformation and it is applied to the entire sequence.
+            # idx is the index of the sequence in the dataset. This is used as a seed for consistent random decisions across different epochs.
+            self.transforms.reset_sequence(sequence_idx=idx, num_epochs=self.num_epochs)
             
             # Apply transforms to each frame
             transformed_frames = []
@@ -99,12 +99,12 @@ class MOVIC(Dataset):
         return len(self.masks)
 
 
-    def get_video_frame_labels(self, com, bbox, masks, rgbs, flows):
-        '''
-        outputs 24 entries, each of which corresponds to data of a frame data.
-        '''
-        output=[]
-        for i in range(com.shape[0]):
-            output.append((com[i], bbox[i], masks[i], rgbs[i], flows[i]))
+    # def get_video_frame_labels(self, com, bbox, masks, rgbs, flows):
+    #     '''
+    #     outputs 24 entries, each of which corresponds to data of a frame data.
+    #     '''
+    #     output=[]
+    #     for i in range(com.shape[0]):
+    #         output.append((com[i], bbox[i], masks[i], rgbs[i], flows[i]))
         
-        return output 
+    #     return output 

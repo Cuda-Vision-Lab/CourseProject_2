@@ -7,11 +7,14 @@ from torchvision.transforms import ToTensor, Normalize, Compose
 import time
 
 class ParameterCompose:
-    def __init__(self, transforms):
+    def __init__(self, transforms, base_seed=42):
         self.transforms = transforms
         self.should_hflip = None
         self.should_vflip = None
-
+        self.base_seed = base_seed # the base seed used during training the model.
+        self.current_sequence_idx = None # the index of the sequence in the dataset. This is used as a seed for consistent random decisions across different sequences.
+        self.num_epochs = None # the number of epochs used during training the model. This is used as a seed for consistent random decisions across different epochs.
+    
     def __call__(self, rgbs, masks, flows, coord):
         
         # Make sequence decisions only once (on first frame of sequence)
@@ -31,21 +34,30 @@ class ParameterCompose:
 
     def _make_sequence_decisions(self):
         """Make random decisions for this sequence"""
+        
+        if self.current_sequence_idx is not None:
+            # Semi-random seed: base_seed + sequence_idx + random component
+            # Provides variety across epochs and sequences while maintaining sequence consistency
+            max_epochs = self.num_epochs if self.num_epochs is not None else 100
+            epoch_random_component = random.randint(0, max_epochs)  # Add randomness for epoch diversity
+            sequence_seed = self.base_seed + self.current_sequence_idx + epoch_random_component
+        else:
+            max_epochs = self.num_epochs if self.num_epochs is not None else 100
+            sequence_seed = self.base_seed + random.randint(0, max_epochs)
+            
+        random.seed(sequence_seed)
+        torch.manual_seed(sequence_seed)
 
-        # Using current time for variety
-        random_seed = int(time.time() * 1000) % 10000
-        random.seed(random_seed)
-        torch.manual_seed(random_seed)
-
-        self.should_hflip = random.random() < 0.5
-        self.should_vflip = random.random() < 0.3
+        self.should_hflip = random.random() < 0.5 # 50% chance of horizontal flip
+        self.should_vflip = random.random() < 0.3 # 30% chance of vertical flip
         
         
-    def reset_sequence(self):
+    def reset_sequence(self, sequence_idx=None, num_epochs=None):
         """Is called when starting a new sequence to make new random decisions"""
         self.should_hflip = None
         self.should_vflip = None
-        
+        self.current_sequence_idx = sequence_idx
+        self.num_epochs = num_epochs
         
         
 class RandomVerticalFlip:
@@ -172,7 +184,7 @@ class ResizeTransform:
         return rgbs, masks, flows, coord
 
 
-def get_train_transforms():
+def get_train_transforms(base_seed=42):
     """
     Get augmentation transforms for training
     """
@@ -181,15 +193,15 @@ def get_train_transforms():
         RandomHorizontalFlip(),
         RandomVerticalFlip(),
         NormalizeTransform()
-    ])
+    ], base_seed=base_seed)
 
 
-def get_validation_transforms():
+def get_validation_transforms(base_seed=42):
     """
     Get transforms for validation (no augmentation)
     """
     return ParameterCompose([
         ResizeTransform(size=(128, 128)),
         NormalizeTransform()
-    ])
+    ], base_seed=base_seed)
 

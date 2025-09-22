@@ -24,21 +24,22 @@ def load_data(path, split="train", use_transforms=True):
         Dataset loaded given specifications from exp_params
     """
     # Get appropriate transforms based on split
+    num_epochs = config['training']['num_epochs']
     
     if use_transforms:
         if split == "train":
-            transforms = get_train_transforms()
+            transforms = get_train_transforms(base_seed=42)
         else:
-            transforms = get_validation_transforms()
+            transforms = get_validation_transforms(base_seed=42)
     else:
         transforms = None
         
     #  dataset = MOVIC(path, split=split, transforms=None)
-    dataset = MOVIC(path, split=split, transforms=transforms)
+    dataset = MOVIC(path, split=split, transforms=transforms, num_epochs=num_epochs)
     return dataset
 
 # @log_function
-def build_data_loader(dataset, split='train', sampler=None):
+def build_data_loader(dataset, split='train'):
     """
     Fitting a data loader for the given dataset
 
@@ -59,9 +60,8 @@ def build_data_loader(dataset, split='train', sampler=None):
     data_loader = DataLoader(
                              dataset=dataset,
                              batch_size=batch_size,
-                             shuffle=shuffle if sampler is None else False,
-                             num_workers=num_workers,
-                             sampler=sampler
+                             shuffle=shuffle,
+                             num_workers=num_workers
                             )
 
     return data_loader
