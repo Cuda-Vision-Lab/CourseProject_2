@@ -107,21 +107,8 @@ class VitDecoder(baseTransformer):
             mask: [B, T, N] - mask indicating which patches to reconstruct
             modality: 'image', 'mask', or 'bbox'
         """
-        # if modality == 'bbox':
-        #     # For bboxes, compute MSE loss directly
-        #     loss = (pred - targets) ** 2
-        #     loss = loss.mean(dim=-1)  # [B, T, N]
-        #     loss = (loss * mask).sum() / mask.sum()
-        #     return loss
-        
-        # For images and masks, patchify targets first
-        # if modality == 'image':
-            # target_patches = self.patchify(targets)
         target_patches = self.patchifier(targets)
-        
-        # elif modality == 'mask':
-        #     target_patches = self.patchify_masks(targets)
-        
+            
         # Normalize if specified
         if self.norm_pix_loss:
             mean = target_patches.mean(dim=-1, keepdim=True)
@@ -161,45 +148,18 @@ class VitDecoder(baseTransformer):
         """
         B, T, N, D = encoded_features.shape
         
-        
-        '''TODO: should we work only with image embeddings or what?!'''
+
         # Project to decoder dimension
         x = self.decoder_projection(encoded_features)  # [B, T, N, decoder_embed_dim]
         
-        # mask_tokens = self.mask_token.repeat(B, T, N, 1)  # [B, T, N, decoder_embed_dim]
-        
-        # Apply masks for each modality
-        
-        # Process each modality
-        # modalities = ['image']
-        # if self.use_masks:
-        #     modalities.append('mask')
-        # if self.use_bboxes:
-        #     modalities.append('bbox')
-        
-        # for modality in modalities:
-        #     if modality not in masks:
-        #         continue
-                
-            # mask = masks[modality]  # [B, T, N]
-            # ids_restore_mod = ids_restore[modality]  # [B, T, N]
-            
-            # Create modality-specific tokens
-            # x_mod = x.clone()
-            
-            # Add modality embedding
-            # if self.use_masks or self.use_bboxes:
-            #     modality_id = 0 if modality == 'image' else (1 if modality == 'mask' else 2)
-            #     modality_emb = self.modality_embeddings(
-            #         torch.full((B, T, N), modality_id, device=x.device, dtype=torch.long)
-            #     )
-            #     x_mod = x_mod + modality_emb
-            
-        
         if self.mode == 'training' and mask is not None:
             # Add mask tokens for masked positions
+            
+            # Extract image mask and ids_restore from dictionaries
+            image_mask = mask['image'] 
+            image_ids_restore = ids_restore['image']
                    
-            N_total = mask.shape[2]
+            N_total = image_mask.shape[2]
             N_keep = x.shape[2]
             num_masked = N_total - N_keep
             if num_masked > 0:
@@ -207,7 +167,7 @@ class VitDecoder(baseTransformer):
                 x = torch.cat([x, mask_tokens_needed], dim=2)  # [B, T, N_keep + num_masked, D] == [B, T, N_total, D]
             
             # Restore original order
-            ids_restore_expanded = ids_restore.unsqueeze(-1).expand(-1, -1, -1, self.decoder_embed_dim)
+            ids_restore_expanded = image_ids_restore.unsqueeze(-1).expand(-1, -1, -1, self.decoder_embed_dim)
             x = torch.gather(x, dim=2, index=ids_restore_expanded)
         
         elif self.mode == 'inference' or self.mode == 'predictor':
@@ -229,7 +189,9 @@ class VitDecoder(baseTransformer):
         # Compute loss 
         loss = None
         if target is not None:        
-            loss = self.forward_loss(target, pred_patches, mask)
+            # Extract image mask from the dictionary
+            image_mask = mask['image'] 
+            loss = self.forward_loss(target, pred_patches, image_mask)
         
         # Reconstruct full images from predicted patches
         recons = self.unpatchify(pred_patches)
