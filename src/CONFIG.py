@@ -26,13 +26,13 @@ config = {
                             'shuffle': False,
                             'transforms': 'validation'
                                     },
-                        'num_epochs':100,
+                        'num_epochs':300,
                         
-                        'model_name' : 'holistic_ae_4',
+                        'model_name' : 'holistic_large_mask_0.75',
                         
                         'lr' : 1e-4,
                         
-                        'save_frequency': 20,
+                        'save_frequency': 50,
                         
                         'root' : '/home/user/soltania1/CourseProject_2/src',
                         },
@@ -46,7 +46,7 @@ config = {
                         
                         'in_out_channels' : 3,
                         
-                        'mask_ratio': 0.25, # Decreased from 0.75
+                        'mask_ratio': 0.75, # Decreased from 0.75
                         
                         'norm_pix_loss' : True,
                         
