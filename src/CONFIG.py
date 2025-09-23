@@ -20,11 +20,11 @@ config = {
             'training': {         
                         'train':{
                             'shuffle': True,
-                            'transforms': None
+                            'transforms': 'train'
                                 },
                         'validation':{
                             'shuffle': False,
-                            'transforms': None
+                            'transforms': 'validation'
                                     },
                         'num_epochs':100,
                         
@@ -32,37 +32,37 @@ config = {
                         
                         'lr' : 1e-4,
                         
-                        'save_frequency': 10,
+                        'save_frequency': 20,
                         
                         'root' : '/home/user/soltania1/CourseProject_2/src',
                         },
          
             'vit_cfg': {
-                        'encoder_embed_dim' : 64,
+                        'encoder_embed_dim' : 256, # Increased from 64
                         
-                        'decoder_embed_dim' : 64,
+                        'decoder_embed_dim' : 256, # Increased from 64
                         
                         'max_len' : 64,
                         
                         'in_out_channels' : 3,
                         
-                        'mask_ratio': 0.75,
+                        'mask_ratio': 0.25, # Decreased from 0.75
                         
-                        'norm_pix_loss' : False,
+                        'norm_pix_loss' : True,
                         
                         'use_masks': True,
 
                         'use_bboxes': True,
                         
-                        'attn_dim' : 96 ,
+                        'attn_dim' : 256 ,
 
-                        'num_heads' : 4,
+                        'num_heads' : 8, # Increased from 4
 
-                        'mlp_size' : 512,
+                        'mlp_size' : 1024, # Increased from 512
                         
-                        'encoder_depth' : 4,
+                        'encoder_depth' : 8, # Increased from 4
                         
-                        'decoder_depth' : 2,
+                        'decoder_depth' : 4, # Increased from 2
                         
                         'predictor_depth' : 4,
                         
