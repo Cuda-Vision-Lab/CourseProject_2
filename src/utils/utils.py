@@ -6,7 +6,7 @@ import random
 import logging
 import json
 from matplotlib import pyplot as plt
-
+from torchvision.utils import save_image, make_grid
 from torch.utils.tensorboard import SummaryWriter
 
     
@@ -195,6 +195,31 @@ class TensorboardWriter:
         self.add_scalars(plot_name=plot_name, val_names=dict.keys(), vals=dict.values(), step=step)
         return
 
+    def _log_reconstruction_images(self, images, recons, in_grid, out_grid, epoch, batch_idx):
+        """
+        Visualization of input images vs reconstructions.
+        """
+        # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
+        recons_vis = recons.view(-1, recons.shape[2], recons.shape[3], recons.shape[4])[:8]
+        images_vis = images.view(-1, images.shape[2], images.shape[3], images.shape[4])[:8]
+        
+        # Create grids for visualization
+        input_grid = make_grid(images_vis, nrow=4, normalize=True, scale_each=True)
+        output_grid = make_grid(recons_vis, nrow=4, normalize=True, scale_each=True)
+        
+        # Log to TensorBoard with more descriptive names
+        self.writer.add_image(f'Validation/Input_Images_Batch_{batch_idx}', input_grid, step=epoch)
+        self.writer.add_image(f'Validation/Reconstructions_Batch_{batch_idx}', output_grid, step=epoch)
+        
+        # Save to disk with batch info in filename
+        save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_epoch_{epoch}_batch_{batch_idx}.png"))
+        save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_epoch_{epoch}_batch_{batch_idx}.png"))
+        
+        # Optional: Create side-by-side comparison
+        comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Concatenate horizontally
+        self.writer.add_image(f'Validation/Input_vs_Recons_Batch_{batch_idx}', comparison_grid, step=epoch)
+        save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}_batch_{batch_idx}.png"))
+    
 
 def plot_sequence_comparison(
     rgbs_orig, masks_orig, flows_orig, coords_orig,
