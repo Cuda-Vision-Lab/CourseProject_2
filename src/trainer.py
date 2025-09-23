@@ -2,6 +2,7 @@ from base.baseTrainer import baseTrainer
 from CONFIG import config
 import argparse
 import logging
+import setproctitle
 from model.ocvp import TransformerAutoEncoder, TransformerPredictor, OCVP
 # from model.encoder import MultiModalVitEncoder
 from model.decoder import VitDecoder
@@ -34,6 +35,17 @@ if __name__ == "__main__":
     parser.print_help()
 
     args = parser.parse_args()
+    
+    # Set custom process title for nvidia-smi
+    model_name = config['training']['model_name']
+    if args.ae:
+        setproctitle.setproctitle(f"{model_name}_autoencoder")
+    elif args.predictor:
+        setproctitle.setproctitle(f"{model_name}_predictor")
+    elif args.inference:
+        setproctitle.setproctitle(f"{model_name}_inference")
+    else:
+        setproctitle.setproctitle(f"{model_name}_training")
     
     logging.info(f"Training configuration:")
     logging.info(f"  - Epochs: {config['training']['num_epochs']}")
