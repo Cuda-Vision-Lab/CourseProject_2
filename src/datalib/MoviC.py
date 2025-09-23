@@ -36,11 +36,14 @@ class MOVIC(Dataset):
         rgb_paths = self.rgbs[idx]  # list of frame paths for the video frames = idx
         flow_paths = self.flows[idx]
           
-        rgbs =  torch.stack([io.read_image(p).to(torch.float32) for p in rgb_paths])
-        flows =  torch.stack([io.read_image(p).to(torch.float32) for p in flow_paths])
+        # Faster batch image loading - keep as uint8 (1 byte), let transforms handle float32 (4 bytes) conversion
+        # Faster CPU→GPU transfer: 4x smaller tensors 75% smaller tensors, faster CPU→GPU transfer
+        rgbs = torch.stack([io.read_image(p, mode=io.ImageReadMode.RGB) for p in rgb_paths])
+        flows = torch.stack([io.read_image(p, mode=io.ImageReadMode.RGB) for p in flow_paths])
         
-        coords = torch.load(self.coords[idx], map_location="cpu")  # loaded lazily
-        masks = torch.load(self.masks[idx], map_location="cpu")
+        # Faster loading with explicit CPU mapping and no gradients
+        coords = torch.load(self.coords[idx], map_location="cpu", weights_only=True)
+        masks = torch.load(self.masks[idx], map_location="cpu", weights_only=True)
         
         # Apply transforms if provided
         if self.transforms:
