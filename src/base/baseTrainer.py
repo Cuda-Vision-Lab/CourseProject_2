@@ -66,8 +66,15 @@ class baseTrainer:
         
         self.model = model.to(self.device)
         
-        # Setup optimizer
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg['training']['lr'])
+        # Setup optimizer with better memory efficiency
+        # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg['training']['lr'])
+        self.optimizer = torch.optim.AdamW(
+            self.model.parameters(), 
+            lr=self.cfg['training']['lr'],
+            weight_decay=1e-4,  # Add weight decay for better generalization
+            eps=1e-8,
+            betas=(0.9, 0.95)  # Slightly more stable than default (0.9, 0.999)
+        )
         
         # # Setup scheduler
         # self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -112,7 +119,7 @@ class baseTrainer:
                 continue
             
             # update progress bar
-            if batch_idx % 10 == 0:
+            if batch_idx % 5 == 0:
                 progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: train loss {loss.item():.5f}.")
                   
             epoch_losses.append(loss.item())
@@ -151,7 +158,7 @@ class baseTrainer:
             recons, loss = self.model(images, masks_data, bboxes_data)
             
             # Reconstruction image saving for visualization                
-            if epoch % 5 == 0 and batch_idx == 0:  
+            if batch_idx in range(0,150,50):  
                 # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
                 recons_vis = recons.view(-1, recons.shape[2], recons.shape[3], recons.shape[4])[:8]
                 images_vis = images.view(-1, images.shape[2], images.shape[3], images.shape[4])[:8]
@@ -163,7 +170,7 @@ class baseTrainer:
                 save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_{epoch}.png"))
                 save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_{epoch}.png"))
 
-                progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: valid loss {loss.item():.5f}. ")
+            progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: valid loss {loss.item():.5f}. ")
 
             epoch_losses.append(loss.item())
         
@@ -177,7 +184,11 @@ class baseTrainer:
     def train_model(self, start_epoch=0):
         """ Training a model for a given number of epochs"""
         
-        logging.info(f"Starting {self.training_mode} Training...")
+        logging.info(f"Saving the config ...")
+        save_config(self.cfg, self.config_path , self.exp_name)
+        logging.info(f"Config Saved !")   
+        
+        logging.info(f"Starting {self.training_mode} Training ...")
         
         # Initialize best validation loss for tracking
         best_val_loss = float('inf')
@@ -244,13 +255,8 @@ class baseTrainer:
                           training_mode=self.training_mode)
 
         logging.info(f"Training completed")
-        logging.info(f"Saving the config ...")
-        
-        save_config(self.cfg, self.config_path , self.exp_name)
-        logging.info(f"Config Saved !")       
+            
         logging.info("Saving final checkpoint ...")
-        
-        
         # Save final checkpoint
         save_model(self.model, 
                    self.optimizer, 
