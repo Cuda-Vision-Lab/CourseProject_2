@@ -1,2 +1,5 @@
 *.pyc
 src/experiments/*/tboard_logs/*
+.gitignore
+src/utils/wrappers.py
+src/experiments/*/checkpoints/*.pth
