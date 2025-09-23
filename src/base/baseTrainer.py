@@ -68,14 +68,6 @@ class baseTrainer:
         self.model = model.to(self.device)
         self.num_epochs = self.cfg['training']['num_epochs']
         
-        # Compile model for faster execution (PyTorch 2.0+)
-        try:
-            self.model = torch.compile(self.model, mode='max-autotune')
-            logging.info("Model compiled with torch.compile for faster execution")
-        except Exception as e:
-            logging.info(f"torch.compile not available or failed: {e}")
-            logging.info("Continuing without compilation")
-        
         # Setup optimizer with better memory efficiency
         # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg['training']['lr'])
         self.optimizer = torch.optim.AdamW(
@@ -117,8 +109,7 @@ class baseTrainer:
             recons, loss = self.model(images, masks_data, bboxes_data)
             
             # update progress bar
-            if batch_idx % 5 == 0:
-                progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: train loss {loss.item():.5f}.")
+            progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: train loss {loss.item():.5f}.")
                   
             epoch_losses.append(loss.item())
             
