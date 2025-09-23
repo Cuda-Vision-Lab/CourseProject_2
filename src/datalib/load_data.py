@@ -61,7 +61,10 @@ def build_data_loader(dataset, split='train'):
                              dataset=dataset,
                              batch_size=batch_size,
                              shuffle=shuffle,
-                             num_workers=num_workers
+                             num_workers=num_workers,
+                             pin_memory=True,  # Faster GPU transfer
+                             persistent_workers=True,  # Keep workers alive between epochs
+                             prefetch_factor=2  # Prefetch 2 batches per worker
                             )
 
     return data_loader
