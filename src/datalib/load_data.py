@@ -62,9 +62,9 @@ def build_data_loader(dataset, split='train'):
                              batch_size=batch_size,
                              shuffle=shuffle,
                              num_workers=num_workers,
-                             pin_memory=True,  # Faster GPU transfer
-                             persistent_workers=True,  # Keep workers alive between epochs
-                             prefetch_factor=2  # Prefetch 2 batches per worker
+                             pin_memory=True,  # Faster CPU->GPU transfer.Pinned memory is a special region of host (CPU) memory that is directly accessible by the GPU via Direct Memory Access (DMA), bypassing the need to copy data to a temporary buffer. reduces the latency of moving batches to the GPU
+                             persistent_workers=True,  # Keep workers alive between epochs(they are terminated at the end of each epoch), reduces the overhead of reinitializing workers, making epoch transitions faster.
+                             prefetch_factor=4  # Prefetch 4 batches per worker, so the DataLoader has a buffer of ready batches, reducing the time the GPU waits for data. (4 * num_workers (8)= 32 batches ready to be used by the GPU)
                             )
 
     return data_loader
