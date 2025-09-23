@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('-pc',  '--pckpt', help='Checkpoint path to pretrained predictor')
     parser.add_argument('-s',   '--scene_rep', default='holistic', choices=['holistic', 'oc'], help='Scene representation type (default: holistic)')
     
-    parser.print_help()
+    # parser.print_help()
 
     args = parser.parse_args()
 
