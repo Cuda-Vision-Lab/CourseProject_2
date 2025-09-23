@@ -155,6 +155,10 @@ class baseTransformer(nn.Module, ABC):
         # If BBoxEncoder has learnable positional encodings, ensure reasonable init
         if hasattr(self, "bbox_encoder") and hasattr(self.bbox_encoder, "bbox_pos_encoding"):
             nn.init.normal_(self.bbox_encoder.bbox_pos_encoding, mean=0.0, std=0.02)
+            
+        # Initialize mask token with normal distribution
+        if hasattr(self, "mask_token"):
+            nn.init.normal_(self.mask_token, std=0.02)
     
     @abstractmethod
     def forward (self):
