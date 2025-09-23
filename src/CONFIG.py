@@ -8,13 +8,13 @@ config = {
             'data': {
                     'dataset_path': '/home/nfs/inf6/data/datasets/MOVi/movi_c/',
 
-                    'batch_size': 64,
+                    'batch_size': 32,  # Reduced from 64 to improve memory efficiency
                     
                     'patch_size': 32,
                     
                     'max_objects' : 11,
                     
-                    'num_workers': 0,
+                    'num_workers': 8,  # Use 8 CPU cores for data loading
                     },
  
             'training': {         
@@ -28,19 +28,19 @@ config = {
                                     },
                         'num_epochs':100,
                         
-                        'model_name' : 'maevit1',
+                        'model_name' : 'holistic_ae_4',
                         
                         'lr' : 1e-4,
                         
-                        'save_frequency': 50,
+                        'save_frequency': 10,
                         
                         'root' : '/home/user/soltania1/CourseProject_2/src',
                         },
          
             'vit_cfg': {
-                        'encoder_embed_dim' : 128,
+                        'encoder_embed_dim' : 64,
                         
-                        'decoder_embed_dim' : 128,
+                        'decoder_embed_dim' : 64,
                         
                         'max_len' : 64,
                         
@@ -54,7 +54,7 @@ config = {
 
                         'use_bboxes': True,
                         
-                        'attn_dim' : 192 ,
+                        'attn_dim' : 96 ,
 
                         'num_heads' : 4,
 
