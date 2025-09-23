@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import math
-
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
 
 
 class MultiHeadSelfAttention(nn.Module):
@@ -404,3 +404,25 @@ class BBoxEncoder(nn.Module):
         bbox_embeddings = bbox_emb
           
         return bbox_embeddings
+
+
+def get_scheduler(optimizer, num_epochs, warmup_epochs):
+    '''
+    Getting a scheduler for the optimizer
+    '''
+    # --- Warmup scheduler ---
+    def warmup_lambda(epoch):
+        return float(epoch + 1) / warmup_epochs if epoch < warmup_epochs else 1.0
+
+    warmup_scheduler = LambdaLR(optimizer, lr_lambda=warmup_lambda)
+
+    # --- Cosine Annealing after warmup ---
+    cosine_scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs - warmup_epochs)
+
+    # --- Combination of the two schedulers ---
+    scheduler = SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, cosine_scheduler],
+        milestones=[warmup_epochs]  # switch after warmup_epochs
+    )
+    return scheduler
