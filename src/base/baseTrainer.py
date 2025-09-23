@@ -8,6 +8,7 @@ import torchvision
 import logging
 from utils.logger import log_function
 from utils.utils import create_directory, set_random_seed, save_model, save_config
+from model.model_utils import get_scheduler
 # from torch.utils.tensorboard import SummaryWriter
 from utils.utils import TensorboardWriter
 
@@ -65,6 +66,15 @@ class baseTrainer:
         self.training_mode = mode # "Autoencoder" or "Predictor"
         
         self.model = model.to(self.device)
+        self.num_epochs = self.cfg['training']['num_epochs']
+        
+        # Compile model for faster execution (PyTorch 2.0+)
+        try:
+            self.model = torch.compile(self.model, mode='max-autotune')
+            logging.info("Model compiled with torch.compile for faster execution")
+        except Exception as e:
+            logging.info(f"torch.compile not available or failed: {e}")
+            logging.info("Continuing without compilation")
         
         # Setup optimizer with better memory efficiency
         # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg['training']['lr'])
@@ -76,13 +86,8 @@ class baseTrainer:
             betas=(0.9, 0.95)  # Slightly more stable than default (0.9, 0.999)
         )
         
-        # # Setup scheduler
-        # self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        #     self.optimizer, 
-        #     T_max=self.cfg['training']['num_epochs']
-        # )
-        
-        self.num_epochs = self.cfg['training']['num_epochs']
+        # Setup scheduler
+        self.scheduler = get_scheduler(self.optimizer, num_epochs=self.num_epochs, warmup_epochs= 10) # warmup 10 epochs + cosine annealing
         
         return
 
@@ -98,25 +103,18 @@ class baseTrainer:
         
         for batch_idx, (images, masks, flows, coords) in progress_bar:
 
-            images = images.to(self.device)
+            # Non-blocking GPU transfer for maximum overlap
+            images = images.to(self.device, non_blocking=True)
 
-            # Prepare multi-modal data
-            masks_data = {'masks': masks['masks'].to(self.device)} if masks is not None else None
-            bboxes_data = coords['bbox'].to(self.device) if coords is not None else None
+            # Prepare multi-modal data with non-blocking transfer
+            masks_data = {'masks': masks['masks'].to(self.device, non_blocking=True)} if masks is not None else None
+            bboxes_data = coords['bbox'].to(self.device, non_blocking=True) if coords is not None else None
             
             # Clear gradients
             self.optimizer.zero_grad()
             
             # Forward pass
             recons, loss = self.model(images, masks_data, bboxes_data)
-            
-            # Debug: Check for NaN or inf loss
-            if torch.isnan(loss) or torch.isinf(loss):
-                logging.warning(f"NaN or Inf loss detected at epoch {epoch+1}, batch {batch_idx}")
-                logging.warning(f"Loss value: {loss.item()}")
-                logging.warning(f"Images range: [{images.min().item():.4f}, {images.max().item():.4f}]")
-                logging.warning(f"Recons range: [{recons.min().item():.4f}, {recons.max().item():.4f}]")
-                continue
             
             # update progress bar
             if batch_idx % 5 == 0:
@@ -126,6 +124,9 @@ class baseTrainer:
             
             # Backward pass
             loss.backward()
+            
+            # Gradient clipping to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             
             # Update parameters
             self.optimizer.step()   
@@ -147,18 +148,19 @@ class baseTrainer:
         progress_bar = tqdm(enumerate(self.eval_loader), total=len(self.eval_loader))
         
         for batch_idx, (images, masks, flows, coords) in progress_bar:
-            # Move data to device
-            images = images.to(self.device)
+            # Move data to device with non-blocking transfer, reduce CPU ↔ GPU data transfer bottleneck, when pin_memory is True
+            images = images.to(self.device, non_blocking=True)
             
-            # Prepare multi-modal data
-            masks_data = {'masks': masks['masks'].to(self.device)} if masks is not None else None
-            bboxes_data = coords['bbox'].to(self.device) if coords is not None else None
+            # Prepare multi-modal data with non-blocking transfer
+            masks_data = {'masks': masks['masks'].to(self.device, non_blocking=True)} if masks is not None else None
+            bboxes_data = coords['bbox'].to(self.device, non_blocking=True) if coords is not None else None
             
             # Forward pass
             recons, loss = self.model(images, masks_data, bboxes_data)
             
-            # Reconstruction image saving for visualization                
-            if batch_idx in range(0,150,50):  
+            # Reconstruction image saving for visualization - one unique sequence per epoch
+            target_batch = epoch % min(len(self.eval_loader), 100)  
+            if target_batch % 5 == 0 and batch_idx == target_batch:  
                 # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
                 recons_vis = recons.view(-1, recons.shape[2], recons.shape[3], recons.shape[4])[:8]
                 images_vis = images.view(-1, images.shape[2], images.shape[3], images.shape[4])[:8]
@@ -169,6 +171,10 @@ class baseTrainer:
                 self.writer.add_image('Reconstructions', output_grid, step=epoch)
                 save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_{epoch}.png"))
                 save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_{epoch}.png"))
+                # Create side-by-side comparison
+                comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Horizontal concatenation
+                self.writer.add_image(f'Validation/Comparison_Batch_{target_batch}', comparison_grid, step=epoch)
+                save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}_batch_{target_batch}.png"))
 
             progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: valid loss {loss.item():.5f}. ")
 
@@ -193,6 +199,10 @@ class baseTrainer:
         # Initialize best validation loss for tracking
         best_val_loss = float('inf')
         save_frequency = self.cfg['training']['save_frequency']
+        
+        # Early stopping parameters
+        early_stopping_patience = 10
+        epochs_without_improvement = 0
         
         for epoch in range(self.num_epochs):
             self.current_epoch = epoch + 1  
@@ -220,7 +230,7 @@ class baseTrainer:
             self.writer.add_scalars('Loss/Comparison', ['Train', 'Validation'], [current_train_loss, current_val_loss], epoch+start_epoch)
             
             # Step scheduler
-            # self.scheduler.step()
+            self.scheduler.step()
             
             
             logging.info(f"Train loss: {round(self.training_losses[-1], 5)}")
@@ -238,10 +248,17 @@ class baseTrainer:
             is_best = current_val_loss < best_val_loss
             if is_best:
                 best_val_loss = current_val_loss
+                epochs_without_improvement = 0  # Reset early stopping counter
                 save_type = "best"
                 logging.info(f"🎉 New best validation loss: {round(best_val_loss, 5)}")
             else:
+                epochs_without_improvement += 1
                 save_type = "checkpoint"
+                
+            # Early stopping check
+            if epochs_without_improvement >= early_stopping_patience:
+                logging.info(f"🛑 Early stopping triggered! No improvement for {early_stopping_patience} epochs.")
+                break
                 
             # Periodic checkpoint saving
             if (self.current_epoch % save_frequency == 0) or is_best:           
@@ -254,7 +271,7 @@ class baseTrainer:
                           save_type=save_type,
                           training_mode=self.training_mode)
 
-        logging.info(f"Training completed")
+        logging.info(f"🏁 Training completed!")
             
         logging.info("Saving final checkpoint ...")
         # Save final checkpoint
