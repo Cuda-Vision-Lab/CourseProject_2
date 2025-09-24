@@ -54,7 +54,7 @@ if __name__ == "__main__":
  
     if args.ae:
         logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
-        setproctitle.setproctitle(f"{model_name}_autoencoder")
+        setproctitle.setproctitle(f"{model_name}_AE")
         logging.info(f"AUTOENCODER TRAINING MODE --> Scene Representation: {args.scene_rep}")
         
         if not args.ackpt:
