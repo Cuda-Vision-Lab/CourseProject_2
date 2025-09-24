@@ -79,7 +79,9 @@ class baseTrainer:
         )
         
         # Setup scheduler
-        self.scheduler = get_scheduler(self.optimizer, num_epochs=self.num_epochs, warmup_epochs= 10) # warmup 10 epochs + cosine annealing
+        # warmup epochs + cosine annealing
+        warmup_epochs = self.cfg['training']['warmup_epochs']
+        self.scheduler = get_scheduler(self.optimizer, num_epochs=self.num_epochs, warmup_epochs= warmup_epochs) 
         
         return
 
@@ -149,23 +151,41 @@ class baseTrainer:
             # Forward pass
             recons, loss = self.model(images, masks_data, bboxes_data)
             
-            # Reconstruction image saving for visualization - one unique sequence per epoch
-            target_batch = epoch % min(len(self.eval_loader), 100)  
-            if target_batch % 5 == 0 and batch_idx == target_batch:  
-                # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
-                recons_vis = recons.view(-1, recons.shape[2], recons.shape[3], recons.shape[4])[:8]
-                images_vis = images.view(-1, images.shape[2], images.shape[3], images.shape[4])[:8]
-                
-                input_grid = make_grid(images_vis, nrow=4)
-                output_grid = make_grid(recons_vis, nrow=4)
-                self.writer.add_image('Input Images', input_grid, step=epoch)
-                self.writer.add_image('Reconstructions', output_grid, step=epoch)
-                save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_{epoch}.png"))
-                save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_{epoch}.png"))
-                # Create side-by-side comparison
-                comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Horizontal concatenation
-                self.writer.add_image(f'Validation/Comparison_Batch_{target_batch}', comparison_grid, step=epoch)
-                save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}_batch_{target_batch}.png"))
+            # Reconstruction image saving for visualization - one unique sequence
+            if epoch % 5 == 0:
+                target_batch = epoch * 2 
+                if batch_idx == target_batch:
+                    # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
+                    recons_vis = recons.view(-1, recons.shape[2], recons.shape[3], recons.shape[4])
+                    images_vis = images.view(-1, images.shape[2], images.shape[3], images.shape[4])
+                                
+                    # Compute a shifting start index for variety
+                    total_frames = recons_vis.shape[0]  
+                    start_idx = (epoch * len(self.eval_loader) + batch_idx) * 8 % (total_frames - 8)
+
+                    # Select 8 consecutive samples, shifting across training
+                    recons_vis = recons_vis[start_idx:start_idx+8]
+                    images_vis = images_vis[start_idx:start_idx+8]
+                    
+                    if recons_vis.max() <= 1.0:
+                        recons_vis = recons_vis.clamp(0, 1)
+                    else:
+                        recons_vis = recons_vis.clamp(0, 255) / 255.0
+                    if images_vis.max() <= 1.0:
+                        images_vis = images_vis.clamp(0, 1)
+                    else:
+                        images_vis = images_vis.clamp(0, 255) / 255.0
+                        
+                    input_grid = make_grid(images_vis, nrow=4)
+                    output_grid = make_grid(recons_vis, nrow=4)
+                    self.writer.add_image('Input Images', input_grid, step=epoch)
+                    self.writer.add_image('Reconstructions', output_grid, step=epoch)
+                    save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_{epoch}.png"))
+                    save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_{epoch}.png"))
+                    # Create side-by-side comparison
+                    comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Horizontal concatenation
+                    self.writer.add_image(f'Comparison', comparison_grid, step=epoch)
+                    save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}_batch_{target_batch}.png"))
 
             progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: valid loss {loss.item():.5f}. ")
 
