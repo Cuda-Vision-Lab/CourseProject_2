@@ -207,9 +207,9 @@ class TensorboardWriter:
         input_grid = make_grid(images_vis, nrow=4, normalize=True, scale_each=True)
         output_grid = make_grid(recons_vis, nrow=4, normalize=True, scale_each=True)
         
-        # Log to TensorBoard with more descriptive names
-        self.writer.add_image(f'Validation/Input_Images_Batch_{batch_idx}', input_grid, step=epoch)
-        self.writer.add_image(f'Validation/Reconstructions_Batch_{batch_idx}', output_grid, step=epoch)
+        # Log to TensorBoard with more descriptive names (DISABLED - not needed)
+        # self.writer.add_image(f'Validation/Input_Images_Batch_{batch_idx}', input_grid, step=epoch)
+        # self.writer.add_image(f'Validation/Reconstructions_Batch_{batch_idx}', output_grid, step=epoch)
         
         # Save to disk with batch info in filename
         save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_epoch_{epoch}_batch_{batch_idx}.png"))
@@ -217,7 +217,7 @@ class TensorboardWriter:
         
         # Optional: Create side-by-side comparison
         comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Concatenate horizontally
-        self.writer.add_image(f'Validation/Input_vs_Recons_Batch_{batch_idx}', comparison_grid, step=epoch)
+        # self.writer.add_image(f'Validation/Input_vs_Recons_Batch_{batch_idx}', comparison_grid, step=epoch)  # DISABLED
         save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}_batch_{batch_idx}.png"))
     
 
