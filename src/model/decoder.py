@@ -62,25 +62,22 @@ class VitDecoder(baseTransformer):
         """
         B, T, N, D = x.shape
         
-        # Reshape to patches
-        x = x.reshape(B, T, N, self.patch_size, self.patch_size, -1)
+        # Calculate dimensions
+        grid_size = int(N**0.5)
+        C = D // (self.patch_size * self.patch_size)
+        H = W = grid_size * self.patch_size
         
-        # Calculate image dimensions
-        H = W = int(N**0.5) * self.patch_size # number of patches (in h and w) * patch_size
+        # Step 1: Reshape to patch grid format
+        # [B, T, N, D] -> [B, T, grid_size, grid_size, C, patch_size, patch_size]
+        x = x.reshape(B, T, grid_size, grid_size, C, self.patch_size, self.patch_size)
         
-        # Reconstruct full image
-        # x = x.permute(0, 1, 3, 2, 4, 5)  # [B, T, patch_size, H//patch_size, patch_size, W//patch_size, C]
-        # x = x.reshape(B, T, H, W, -1)
+        # Step 2: Rearrange to image format (reverse of patchify permute)
+        # Patchify does: (0, 1, 3, 5, 2, 4, 6) -> (B, T, num_patch_H, num_patch_W, C, patch_size, patch_size)
+        # So reverse should be: (0, 1, 4, 2, 5, 3, 6) -> (B, T, C, num_patch_H, patch_size, num_patch_W, patch_size)
+        x = x.permute(0, 1, 4, 2, 5, 3, 6)
         
-        # # Permute to [B, T, C, H, W] format
-
-        # x = x.permute(0, 1, 4, 2, 3)
-        # Reshape to [B, T, sqrt(N), sqrt(N), patch_size, patch_size, C]
-        x = x.reshape(B, T, int(N**0.5), int(N**0.5), self.patch_size, self.patch_size, -1)
-        # Permute to [B, T, C, sqrt(N), patch_size, sqrt(N), patch_size]
-        x = x.permute(0, 1, 6, 2, 4, 3, 5)
-        # Reshape to [B, T, C, H, W]
-        x = x.reshape(B, T, -1, H, W)
+        # Step 3: Reshape back to full image
+        x = x.reshape(B, T, C, H, W)
         
         return x
     
