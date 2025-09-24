@@ -27,10 +27,12 @@ config = {
                             'transforms': 'validation'
                                     },
                         'num_epochs':300,
+
+                        'warmup_epochs': 30,
                         
-                        'model_name' : 'holistic_large_mask_0.75',
+                        'model_name' : 'holistic_large_mask_0.25',
                         
-                        'lr' : 1e-4,
+                        'lr' : 4e-4,
                         
                         'save_frequency': 50,
                         
@@ -42,11 +44,11 @@ config = {
                         
                         'decoder_embed_dim' : 256, # Increased from 64
                         
-                        'max_len' : 64,
+                        'max_len' : 256,
                         
                         'in_out_channels' : 3,
                         
-                        'mask_ratio': 0.75, # Decreased from 0.75
+                        'mask_ratio': 0.25, # Decreased from 0.75
                         
                         'norm_pix_loss' : True,
                         
@@ -60,9 +62,9 @@ config = {
 
                         'mlp_size' : 1024, # Increased from 512
                         
-                        'encoder_depth' : 8, # Increased from 4
+                        'encoder_depth' : 12, # Increased from 4
                         
-                        'decoder_depth' : 4, # Increased from 2
+                        'decoder_depth' : 6, # Increased from 2
                         
                         'predictor_depth' : 4,
                         
