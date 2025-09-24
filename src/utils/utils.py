@@ -165,7 +165,25 @@ class TensorboardWriter:
 
     def add_image(self, fig_name, img_grid, step):
         """ Adding a new step image to a figure """
-        self.writer.add_image(fig_name, img_grid, global_step=step)
+        try:
+            # Ensure image tensor is properly formatted for tensorboard
+            if img_grid.dim() == 4:
+                # If batch dimension exists, take first image
+                img_grid = img_grid[0]
+            
+            # Ensure tensor is on CPU and detached
+            if hasattr(img_grid, 'detach'):
+                img_grid = img_grid.detach().cpu()
+            
+            # Add image to tensorboard
+            self.writer.add_image(fig_name, img_grid, global_step=step)
+            
+            # Flush to ensure immediate writing
+            self.writer.flush()
+            
+        except Exception as e:
+            print(f"Error adding image {fig_name} to tensorboard: {str(e)}")
+            
         return
 
     def add_figure(self, tag, figure, step):
@@ -194,6 +212,16 @@ class TensorboardWriter:
         plot_name = f"{dir}/{plot_name}" if dir is not None else key
         self.add_scalars(plot_name=plot_name, val_names=dict.keys(), vals=dict.values(), step=step)
         return
+    
+    def close(self):
+        """ Close the tensorboard writer properly """
+        if hasattr(self, 'writer') and self.writer is not None:
+            self.writer.flush()
+            self.writer.close()
+            
+    def __del__(self):
+        """ Ensure proper cleanup when object is destroyed """
+        self.close()
 
     def _log_reconstruction_images(self, images, recons, in_grid, out_grid, epoch, batch_idx):
         """
