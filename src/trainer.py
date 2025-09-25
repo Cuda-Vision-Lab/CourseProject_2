@@ -43,6 +43,8 @@ if __name__ == "__main__":
     model_name = config['training']['model_name']
  
     if args.ae:
+        
+        '''Autoencoder training mode'''
         setproctitle.setproctitle(f"{model_name}_AE")
         logging.info(f"AUTOENCODER TRAINING MODE --> Scene Representation: {args.scene_rep}")
         
@@ -59,10 +61,22 @@ if __name__ == "__main__":
         model = TransformerAutoEncoder(encoder, decoder)
         
         logging.info(f"NUMBER OF MODEL PARAMETERS: {count_model_params(model)}")
+        logging.info(f"Training configuration:")
+        logging.info(f"  - Epochs: {config['training']['num_epochs']}")
+        logging.info(f"  - Batch size: {config['data']['batch_size']}")
+        logging.info(f"  - Learning rate: {config['training']['lr']}")
+        logging.info(f"  - Patch size: {config['data']['patch_size']}")
+        logging.info(f"  - Attention dimension: {config['vit_cfg']['attn_dim']}")
+        logging.info(f"  - Number of heads: {config['vit_cfg']['num_heads']}")
+        logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
+        logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
+        logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
+        logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
+        logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
+        logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
         
         training_mode = "Autoencoder"
-        
-        #Train and save encoder and decoder checkpoints
+
         trainer.setup_model(model=model, mode=training_mode)
         trainer.train_model()
               
@@ -130,16 +144,3 @@ if __name__ == "__main__":
     else:
         raise ValueError("Please specify a valid mode: --ae, --predictor, or --inference")
         
-    logging.info(f"Training configuration:")
-    logging.info(f"  - Epochs: {config['training']['num_epochs']}")
-    logging.info(f"  - Batch size: {config['data']['batch_size']}")
-    logging.info(f"  - Learning rate: {config['training']['lr']}")
-    logging.info(f"  - Patch size: {config['data']['patch_size']}")
-    logging.info(f"  - Attention dimension: {config['vit_cfg']['attn_dim']}")
-    logging.info(f"  - Number of heads: {config['vit_cfg']['num_heads']}")
-    logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
-    logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
-    logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
-    logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
-    logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
-    logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
