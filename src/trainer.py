@@ -36,34 +36,21 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    logging.info(f"Training configuration:")
-    logging.info(f"  - Epochs: {config['training']['num_epochs']}")
-    logging.info(f"  - Batch size: {config['data']['batch_size']}")
-    logging.info(f"  - Learning rate: {config['training']['lr']}")
-    logging.info(f"  - Patch size: {config['data']['patch_size']}")
-    logging.info(f"  - Attention dimension: {config['vit_cfg']['attn_dim']}")
-    logging.info(f"  - Number of heads: {config['vit_cfg']['num_heads']}")
-    logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
-    logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
-    logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
-
+    logging.info(f"Started setting up the trainer --->")
     
     trainer = baseTrainer(config)
     
     model_name = config['training']['model_name']
  
     if args.ae:
-        logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
         setproctitle.setproctitle(f"{model_name}_AE")
         logging.info(f"AUTOENCODER TRAINING MODE --> Scene Representation: {args.scene_rep}")
         
         if not args.ackpt:
+            print()
             logging.warning("No specified scene representation type. By default will be considered as holistic.")
-        elif args.scene_rep == 'oc':
-            logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
-            logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
-
-        
+            print()
+     
         # Create autoencoder model
         mask_ratio = config['vit_cfg']['mask_ratio']
         encoder = get_encoder(scene_rep = args.scene_rep, mode= 'training',mask_ratio = mask_ratio)
@@ -71,7 +58,7 @@ if __name__ == "__main__":
         
         model = TransformerAutoEncoder(encoder, decoder)
         
-        logging.info(f"  - Number of model parameters: {count_model_params(model)}")
+        logging.info(f"NUMBER OF MODEL PARAMETERS: {count_model_params(model)}")
         
         training_mode = "Autoencoder"
         
@@ -143,4 +130,16 @@ if __name__ == "__main__":
     else:
         raise ValueError("Please specify a valid mode: --ae, --predictor, or --inference")
         
-    
+    logging.info(f"Training configuration:")
+    logging.info(f"  - Epochs: {config['training']['num_epochs']}")
+    logging.info(f"  - Batch size: {config['data']['batch_size']}")
+    logging.info(f"  - Learning rate: {config['training']['lr']}")
+    logging.info(f"  - Patch size: {config['data']['patch_size']}")
+    logging.info(f"  - Attention dimension: {config['vit_cfg']['attn_dim']}")
+    logging.info(f"  - Number of heads: {config['vit_cfg']['num_heads']}")
+    logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
+    logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
+    logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
+    logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
+    logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
+    logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
