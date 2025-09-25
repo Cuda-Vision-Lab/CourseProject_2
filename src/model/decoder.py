@@ -28,9 +28,9 @@ class VitDecoder(baseTransformer):
         '''
         self.mask_token = nn.Parameter(torch.zeros(1, 1, self.decoder_embed_dim))
         
-        decoder_input_dim = self.encoder_embed_dim if self.mode == 'training' else self.predictor_embed_dim
+        # decoder_input_dim = self.encoder_embed_dim if self.mode == 'training' else self.predictor_embed_dim # TODO: CHECK!! I guess it is always encoder_embed_dim
         
-        self.decoder_projection = self.get_projection('decoder', in_dim= decoder_input_dim)
+        self.decoder_projection = self.get_projection('decoder')
         self.decoder_pos_embed = self.get_positional_encoder(self.decoder_embed_dim)
         self.decoder_blocks = self.get_transformer_blocks(self.decoder_embed_dim, self.decoder_depth)
         self.decoder_norm = self.get_ln(self.decoder_embed_dim)
