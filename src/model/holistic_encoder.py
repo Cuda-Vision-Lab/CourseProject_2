@@ -24,32 +24,12 @@ class HolisticEncoder(baseTransformer):
     Vision Transformer for image reconstruction task
     """
     def __init__(self , mode, mask_ratio):
-                #  patch_size, 
-                #  embed_dim, 
-                #  attn_dim, 
-                #  num_heads, 
-                #  mlp_size, 
-                #  encoder_depth, 
-                #  in_chans = 3, 
-                #  max_len  = 64,
-                # #  mask_ratio = 0.75,
-                #  max_objects=11,
-                #  use_masks=False,
-                #  use_bboxes=False,
-                #  norm_pix_loss=False):
+
         
         self.mode = mode
         self.mask_ratio = mask_ratio
 
         super().__init__(config=config)
-        
-        # encoder_embed_dim = config['vit_cfg']['encoder_embed_dim'] # encoder output
-        # encoder_depth = config['vit_cfg']['encoder_depth']
-        # self.embed_dim = embed_dim
-        # self.use_masks = use_masks
-        # self.use_bboxes = use_bboxes
-        # self.mask_ratio = mask_ratio
-        # self.norm_pix_loss = norm_pix_loss
         
         # Projection to transformer token dimension
         self.patch_projection = self.get_projection('encoder', in_dim=None)
@@ -125,6 +105,7 @@ class HolisticEncoder(baseTransformer):
         B, T = images.shape[:2]  
         all_masks = {}
         all_ids_restore = {}
+        
         # Breaking image into patches
         image_patches = self.patchifier(images)
         
@@ -144,10 +125,11 @@ class HolisticEncoder(baseTransformer):
             # Return dictionaries for consistency with expected interface
             all_masks = {'image': image_mask}
             all_ids_restore = {'image': image_ids_restore}
-            return encoded_features, all_masks, all_ids_restore
+            return encoded_features, all_masks, all_ids_restore # encoded_features shape: torch.Size([B, T, N_keep, D]), mask shape: torch.Size([B, T, N]), ids_restore shape: torch.Size([B, T, N])
+
             
-        else: 
-            # no masking in inference and predictor training mode
+        else:
+            # No masking in inference and predictor training mode
             encoded_features = self.encoder_blocks(image_tokens)
             encoded_features = self.encoder_norm(encoded_features)
             
