@@ -1,241 +1,181 @@
 import numpy as np
 import torch.nn as nn
 import torch
-from .model_utils import MaskEncoder, BBoxEncoder
+import torch.nn.functional as F
+from .model_utils import MaskEncoder, BBoxEncoder, PositionalEncoding, TransformerBlock
 from base.baseTransformer import baseTransformer
 from CONFIG import config
+import random
 
 class PredictorWrapper(nn.Module):
+    """
+    Wrapper module that autoregressively applies any predictor module on a sequence of data
     
+    Args:
+    -----
+    predictor: nn.Module
+        Instantiated predictor module to wrap.
+    """
     
-    def __init__(self, exp_params, predictor):
+    '''
+    At each prediction step, the wrapper:
+
+    Concatenates the newly predicted embedding to the current input buffer.
+    Trims the buffer to the required size (oldest frames dropped if necessary).
+    Feeds this buffer into the transformer to generate the next prediction.
+    Repeats this for the number of prediction steps required.
+    '''
+    
+    def __init__(self, predictor):
         """
         Module initializer
         """
-        super().__init__()
+        super().__init__(config=config)
+        
         self.predictor = predictor
         self.num_preds = config['vit_cfg']['num_preds']
         self.predictor_window_size = config['vit_cfg']['predictor_window_size']
+        # self.mode = mode
         
-    def _update_buffer_size(self, inputs):
+    
+    def forward(self, encoder_history):
+        """
+
+        Args:
+        -----
+        encoder_history: torch Tensor
+        the output of the encoder : Shape is (B, T, num_tokens, embed_dim) : num_tokens = N_total, no token masking here, 
+        predictor receives N_total(total number of tokens in the sequence) embeddings for all tokens in the sequence
+            Shape is (B, T, num_tokens, embed_dim)
+
+        Returns:
+        --------
+        pred_embeds: torch Tensor
+            Predicted subsequent embeddings. Shape is (B, num_preds, num_tokens, embed_dim)
+        
+        """
+        B, T, N, D = encoder_history.shape
+
+        # Dynamically slicing the input sequence 
+        slicing_idx = random.randint(0, T - (2*self.num_preds+1))
+        
+        # Keep 5 consecutive tokens for prediction
+        predictor_input = encoder_history[:, slicing_idx : slicing_idx+self.num_preds].clone()  # (B, num_frames, N, D)
+
+        target = encoder_history[:, slicing_idx+self.num_preds:slicing_idx+(2*self.num_preds)].clone()  # Future frames for loss computation
+        
+        losses = []
+        pred_embeds = []
+        
+        for t in range(self.num_preds):
+            
+            # Get prediction from current input buffer, keep only the last prediction
+            cur_pred = self.predictor(predictor_input)[:, -1]# (B, N, D) -- only last prediction
+            
+            # Compute loss iin each time step - CHECK!! Is this correct?
+            loss = self.forward_loss(target[:, t], cur_pred) 
+            losses.append(loss)
+            
+            # Autoregressive: feed back last prediction
+            predictor_input = torch.cat([predictor_input, cur_pred], dim=1)  # (B, num_frames+1, N, embed_dim)
+            predictor_input = self._update_buffer_size(predictor_input)  # Shift window size (B, num_frames, N, embed_dim)
+            pred_embeds.append(cur_pred) 
+            
+        pred_embeds = torch.stack(pred_embeds, dim=1)  # (B, num_preds, N, embed_dim)
+        total_loss = torch.stack(losses).mean()  # mean over prediction steps 
+        
+        return pred_embeds, total_loss
+    
+    def forward_loss(self, target, pred):
+        """
+        Compute reconstruction loss .
+        """
+        loss = F.mse_loss(pred, target)
+        return loss
+
+    def _update_buffer_size(self, predictor_inputs):
         """
         Updating the inputs of a transformer model given the 'buffer_size'.
         We keep a moving window over the input tokens, dropping the oldest slots if the buffer
         size is exceeded.
         """
-        num_inputs = inputs.shape[1]
-        if num_inputs > self.input_buffer_size:
-            extra_inputs = num_inputs - self.input_buffer_size
-            inputs = inputs[:, extra_inputs:]
-        return inputs
+        num_inputs = predictor_inputs.shape[1]
+        if num_inputs > self.predictor_window_size:
+            extra_inputs = num_inputs - self.predictor_window_size
+            predictor_inputs = predictor_inputs[:, extra_inputs:]
+        return predictor_inputs
+
+
+class TransformerPredictor(baseTransformer):
     
-    def forward_transformer(self, slot_history):
-        """
-        Forward pass through any Transformer-based predictor module
-
-        Args:
-        -----
-        slot_history: torch Tensor
-            Decomposed slots form the seed and predicted images.
-            Shape is (B, num_frames, num_slots, slot_dim)
-
-        Returns:
-        --------
-        pred_slots: torch Tensor
-            Predicted subsequent slots. Shape is (B, num_preds, num_slots, slot_dim)
-        """
-        first_slot_idx = 1 if self.skip_first_slot else 0
-        predictor_input = slot_history[:, first_slot_idx:self.num_context].clone()  # inial token buffer
-
-        pred_slots = []
-        for t in range(self.num_preds):
-            cur_preds = self.predictor(predictor_input)[:, -1]  # get predicted slots from step
-            next_input = slot_history[:, self.num_context+t] if self.teacher_force else cur_preds
-            predictor_input = torch.cat([predictor_input, next_input.unsqueeze(1)], dim=1)
-            predictor_input = self._update_buffer_size(predictor_input)
-            pred_slots.append(cur_preds)
-        pred_slots = torch.stack(pred_slots, dim=1)  # (B, num_preds, num_slots, slot_dim)
-        return pred_slots
-        
-     
-
-
-class VanillaTransformerPredictor(nn.Module):
-    """
-    Vanilla Transformer Predictor module.
-    It performs self-attention over all slots in the input buffer, jointly modelling
-    the relational and temporal dimensions.
-
-    Args:
-    -----
-    num_slots: int
-        Number of slots per image. Number of inputs to Transformer is num_slots * num_imgs
-    slot_dim: int
-        Dimensionality of the input slots
-    num_imgs: int
-        Number of images to jointly process. Number of inputs to Transformer is num_slots * num_imgs
-    token_dim: int
-        Input slots are mapped to this dimensionality via a fully-connected layer
-    hidden_dim: int
-        Hidden dimension of the MLPs in the transformer blocks
-    num_layers: int
-        Number of transformer blocks to sequentially apply
-    n_heads: int
-        Number of attention heads in multi-head self attention
-    residual: bool
-        If True, a residual connection bridges across the predictor module
-    input_buffer_size: int
-        Maximum number of consecutive time steps that the transformer receives as input
-    """
-
-    def __init__(self, num_slots, slot_dim, num_imgs, token_dim=128, hidden_dim=256,
-                 num_layers=2, n_heads=4, residual=False, input_buffer_size=5):
-        """
-        Module initializer
-        """
-        super().__init__()
-        self.num_slots = num_slots
-        self.num_imgs = num_imgs
-        self.slot_dim = slot_dim
-        self.token_dim = token_dim
-        self.hidden_dim = hidden_dim
-        self.num_layers = num_layers
-        self.nhead = n_heads
-        self.residual = residual
-        self.input_buffer_size = input_buffer_size
-        print_("Instanciating Vanilla Transformer Predictor:")
-        print_(f"  --> num_layers: {self.num_layers}")
-        print_(f"  --> input_dim: {self.slot_dim}")
-        print_(f"  --> token_dim: {self.token_dim}")
-        print_(f"  --> hidden_dim: {self.hidden_dim}")
-        print_(f"  --> num_heads: {self.nhead}")
-        print_(f"  --> residual: {self.residual}")
-        print_("  --> batch_first: True")
-        print_("  --> norm_first: True")
-        print_(f"  --> input_buffer_size: {self.input_buffer_size}")
-
-        # MLPs to map slot-dim into token-dim and back
-        self.mlp_in = nn.Linear(self.encoder_embed_dim, token_dim)
-        self.mlp_out = nn.Linear(token_dim, self.predictor_embed_dim)
-
-        # embed_dim is split across num_heads, i.e., each head will have dimension embed_dim // num_heads)
-        self.transformer_encoders = self.predictor_blocks
-        # nn.Sequential(
-        #     *[torch.nn.TransformerEncoderLayer(
-        #             d_model=token_dim,
-        #             nhead=self.nhead,
-        #             batch_first=True,
-        #             norm_first=True,
-        #             dim_feedforward=hidden_dim
-        #         ) for _ in range(num_layers)]
-        #     )
-
-        # Custom temrpoal encoding. All slots from the same time step share the encoding
-        self.pe = PositionalEncoding(d_model=self.token_dim, max_len=input_buffer_size)
-        return
-
-    def forward(self, inputs):
-        """
-        Foward pass through the transformer predictor module to predic the subsequent object slots
+    """ 
+        Foward pass through the transformer predictor module to predic the subsequent embeddings
 
         Args:
         -----
         inputs: torch Tensor
-            Input object slots from the previous time steps. Shape is (B, num_imgs, num_slots, slot_dim)
+            Input embeddings from the previous time steps. Shape is (B, num_frames, num_tokens, embed_dim)
 
         Returns:
         --------
         output: torch Tensor
-            Predictor object slots. Shape is (B, num_imgs, num_slots, slot_dim), but we only care about
-            the last time-step, i.e., (B, -1, num_slots, slot_dim).
-        """
-        B, num_imgs, num_patches, _ = inputs.shape
-
-        # mapping slots to tokens, and applying temporal positional encoding
-        token_input = self.mlp_in(inputs)
-        time_encoded_input = self.pe(
-                                    x=token_input,
-                                    batch_size=B,
-                                    num_slots=num_patches
-                                    )
-
-        # feeding through transformer encoder blocks
-        token_output = time_encoded_input.reshape(B, num_imgs * num_patches, self.token_dim)
-        for encoder in self.transformer_encoders:
-            token_output = encoder(token_output)
-        token_output = token_output.reshape(B, num_imgs, num_patches, self.token_dim)
-
-        # mapping back to slot dimensionality
-        output = self.mlp_out(token_output)
-        output = output + inputs if self.residual else output
-        return output
-
-
-
-class Predictor(baseTransformer):
+            Predictor embeddings. Shape is (B, num_frames, num_tokens, embed_dim), but we only care about
+            the last time-step, i.e., (B, -1, num_tokens, embed_dim).
     
-    """ 
-    Vision Transformer for image reconstruction task
     """
+    
     def __init__(self):
         
-        module_name = 'predictor'
+        super().__init__(config=config)
         
-        super().__init__(config=config, module_name=module_name)
-          
-        self.pe = self.get_positional_encoder(module_name)
+        self.mlp_in, self.mlp_out = self.get_projection('predictor')
         
-        self.mlp_in = nn.Linear(self.encoder_embed_dim, token_dim)
-        self.mlp_out = nn.Linear(token_dim, self.predictor_embed_dim)
-        
-        self.transformer_encoders = self.transformer_encoder(module_name)
-        
+        # Positional encoder for sequence modeling
+        self.pe = self.get_positional_encoder(embed_dim=self.predictor_embed_dim)
+                
+        # Transformer blocks
+        self.transformer_encoders = self.get_transformer_blocks(
+                                                                embed_dim=self.predictor_embed_dim, 
+                                                                depth=self.predictor_depth
+                                                                )
         
         # Initialize weights
         self.initialize_weights()
 
         return
 
-    def forward_loss(self, imgs, pred, mask):
-        """
-        Compute reconstruction loss .
-        """
-        pass
-    #     return loss
 
-    
-def forward(self, inputs):
+    def forward(self, inputs):
         """
-        Foward pass through the transformer predictor module to predic the subsequent object slots
+        Forward pass through the transformer predictor module
 
         Args:
         -----
         inputs: torch Tensor
-            Input object slots from the previous time steps. Shape is (B, num_imgs, num_slots, slot_dim)
+            Input embeddings from encoder for the whole sequence. Shape is (B, seq_len, num_patch_tokens, embed_dim)
 
         Returns:
         --------
         output: torch Tensor
-            Predictor object slots. Shape is (B, num_imgs, num_slots, slot_dim), but we only care about
-            the last time-step, i.e., (B, -1, num_slots, slot_dim).
+            Predicted embeddings. Shape is (B, seq_len_keep, num_patch_tokens, predictor_embed_dim)
         """
-        B, num_imgs, num_patches, _ = inputs.shape
+        B, T, N, D = inputs.shape  # T = buffer_size 
 
-        # mapping slots to tokens, and applying temporal positional encoding
-        token_input = self.mlp_in(inputs)
-        time_encoded_input = self.pe(
-                                    x=token_input,
-                                    batch_size=B,
-                                    num_slots=num_patches
-                                    )
+        # Map embeddings to token space
+        token_input = self.mlp_in(inputs)  # (B, seq_len_keep, num_patch_tokens, predictor_embed_dim)
+        
+        # Apply positional encoding
+        token_input = self.pe(token_input)
 
-        # feeding through transformer encoder blocks
-        token_output = time_encoded_input.reshape(B, num_imgs * num_patches, self.token_dim)
-        for encoder in self.transformer_encoders:
-            token_output = encoder(token_output)
-        token_output = token_output.reshape(B, num_imgs, num_patches, self.token_dim)
+        # Feed through transformer encoder blocks
+        pred_tokens = self.transformer_encoders(token_input) # (B, seq_len_keep, num_patch_tokens, predictor_embed_dim)
+        
+        pred_tokens = pred_tokens.reshape(B, T, N, self.predictor_embed_dim) # same as inputs
 
-        # mapping back to slot dimensionality
-        output = self.mlp_out(token_output)
-        output = output + inputs if self.residual else output
+        # Map back to embedding space
+        output = self.mlp_out(pred_tokens)  # 
+        
+        if self.residual:
+            output = output + inputs
+            
         return output
