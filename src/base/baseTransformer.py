@@ -34,34 +34,13 @@ class baseTransformer(nn.Module, ABC):
         self.encoder_depth = config['vit_cfg']['encoder_depth']
         self.decoder_depth = config['vit_cfg']['decoder_depth']
         self.predictor_depth = config['vit_cfg']['predictor_depth']
-        # self.use_predictor = config['vit_cfg']['use_predictor']
         
+        self.patchifier = Patchifier(patch_size = self.patch_size) 
         
-        self.patchifier = Patchifier(patch_size = self.patch_size)
-        
-        # #VitEncoder
-        # module_name = 'encoder'
-        
-        # functions = [self.get_positional_encoder, self.get_projection, self.get_transformer_blocks, self.get_ln]
-        
-        # self.encoder_pos_embed, self.patch_projection, self.encoder_blocks, self.encoder_norm = list(map(lambda f : f(module_name),functions))
-        
-        ''' Image processing. Creating the embedding for each image patch/token'''
-        
-        #VitDecoder
-        # module_name = 'decoder'
-        
-        # self.decoder_pos_embed, self.decoder_projection, self.decoder_blocks, self.decoder_norm = list(map(lambda f : f(module_name),functions))
-        
-        # self.decoder_pred_image = nn.Linear(self.decoder_embed_dim, self.patch_size**2 * self.out_chans, bias=True)
-        
-        # #Predictor
-        # module_name = 'predictor'
-          
-
         return
     
     def get_projection(self, module_name, in_dim : None):
+        
         '''Prediction heads for different modalities'''
         
         if module_name == 'encoder':
@@ -80,31 +59,13 @@ class baseTransformer(nn.Module, ABC):
             raise ModuleNotFoundError('The given module does not exist! or the configs are not correct')
     
     def get_positional_encoder (self, embed_dim):
-        return PositionalEncoding(d_model = embed_dim ,max_len = self.max_len)
+        '''
+        Spatial and temporal Positional encoding for the transformer blocks
+        '''
+        return PositionalEncoding(d_model = embed_dim)
         
-        # if module_name == 'encoder': 
-        #     return  PositionalEncoding(d_model = self.encoder_embed_dim ,max_len = self.max_len)
-        
-        # elif module_name == 'decoder':
-        #     return  PositionalEncoding(d_model = self.decoder_embed_dim ,max_len = self.max_len)
-        
-        # elif module_name == 'predictor':
-        #     return PositionalEncoding(d_model = 5 * self.predictor_embed_dim ,max_len = self.max_len) #TODO: CHECK!!
-        
-        # else:
-        #     raise ModuleNotFoundError('The given module does not exist! or the configs are not correct')
 
     def get_transformer_blocks (self, embed_dim, depth):
-        
-        # if module_name == 'encoder':
-        #     depth = self.encoder_depth
-        #     embed_dim = self.encoder_embed_dim
-        # elif module_name == 'decoder':
-        #     depth = self.decoder_depth
-        #     embed_dim = self.decoder_embed_dim
-        # else:
-        #     depth = self.predictor_depth       
-        #     embed_dim = self.predictor_embed_dim
         
         transformer_blocks = [
             TransformerBlock(    # cascade of transformer blocks
@@ -119,19 +80,11 @@ class baseTransformer(nn.Module, ABC):
 
     
     def get_ln(self, embed_dim):
+        '''
+        Layer normalization for the transformer blocks
+        '''
         return nn.LayerNorm(embed_dim)
-        # if module_name == 'encoder':
-        #     return nn.LayerNorm(self.encoder_embed_dim)
 
-        # # elif module_name == 'decoder' and not self.use_predictor:
-        # elif module_name == 'decoder':
-        #     return nn.LayerNorm(self.decoder_embed_dim)
-        
-        # elif module_name == 'predictor':
-        #     return nn.LayerNorm(self.predictor_embed_dim)
-        
-        # else:
-        #     raise ModuleNotFoundError('The given module does not exist! or the configs are not correct')
 
     def initialize_weights(self):
         """Initialize module parameters with transformer-friendly defaults.
@@ -140,6 +93,7 @@ class baseTransformer(nn.Module, ABC):
         - Linear weights: Xavier uniform, biases to zero
         - LayerNorm: weights to 1, biases to zero
         - Embedding: normal with std=0.02
+        - Mask Token: normal with std=0.2
         """
         for module in self.modules():
             if isinstance(module, nn.Linear):
@@ -152,10 +106,6 @@ class baseTransformer(nn.Module, ABC):
             elif isinstance(module, nn.Embedding):
                 nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-        # If BBoxEncoder has learnable positional encodings, ensure reasonable init
-        if hasattr(self, "bbox_encoder") and hasattr(self.bbox_encoder, "bbox_pos_encoding"):
-            nn.init.normal_(self.bbox_encoder.bbox_pos_encoding, mean=0.0, std=0.02)
-            
         # Initialize mask token with normal distribution
         if hasattr(self, "mask_token"):
             nn.init.normal_(self.mask_token, std=0.02)
