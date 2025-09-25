@@ -18,14 +18,6 @@ class VitDecoder(baseTransformer):
         super().__init__(config=config)
         
         self.mode = mode
-
-        # self.norm_pix_loss = norm_pix_loss
-        # self.patch_size = patch_size
-        # self.out_chans = out_chans
-        # self.decoder_embed_dim = decoder_embed_dim
-        
-        # Project encoded features to decoder dimension
-        # self.decoder_embed = nn.Linear(self.predictor_embed_dim, self.decoder_embed_dim, bias=True)
         
         # Mask token for reconstruction
         '''
@@ -67,16 +59,15 @@ class VitDecoder(baseTransformer):
         C = D // (self.patch_size * self.patch_size)
         H = W = grid_size * self.patch_size
         
-        # Step 1: Reshape to patch grid format
         # [B, T, N, D] -> [B, T, grid_size, grid_size, C, patch_size, patch_size]
         x = x.reshape(B, T, grid_size, grid_size, C, self.patch_size, self.patch_size)
         
-        # Step 2: Rearrange to image format (reverse of patchify permute)
+        # Reverse of patchify permute)
         # Patchify does: (0, 1, 3, 5, 2, 4, 6) -> (B, T, num_patch_H, num_patch_W, C, patch_size, patch_size)
         # So reverse should be: (0, 1, 4, 2, 5, 3, 6) -> (B, T, C, num_patch_H, patch_size, num_patch_W, patch_size)
         x = x.permute(0, 1, 4, 2, 5, 3, 6)
         
-        # Step 3: Reshape back to full image
+        # Reshape back to full image
         x = x.reshape(B, T, C, H, W)
         
         return x
@@ -91,10 +82,9 @@ class VitDecoder(baseTransformer):
         Returns:
             patches: [B, T, N, patch_dim]
         """
-        # patchifier = Patchifier(self.patch_size)
         return self.patchifier(imgs)
     
-    def forward_loss(self, targets, pred, mask):
+    def forward_loss(self, target_patches, pred_patches, mask):
         """
         Compute reconstruction loss for different modalities.
         
@@ -104,8 +94,7 @@ class VitDecoder(baseTransformer):
             mask: [B, T, N] - mask indicating which patches to reconstruct
             modality: 'image', 'mask', or 'bbox'
         """
-        target_patches = self.patchifier(targets)
-            
+        
         # Normalize if specified
         if self.norm_pix_loss:
             mean = target_patches.mean(dim=-1, keepdim=True)
@@ -113,16 +102,24 @@ class VitDecoder(baseTransformer):
             target_patches = (target_patches - mean) / (var + 1.e-6)**.5
         
         # Compute loss
-        loss = (pred - target_patches) ** 2
-        loss = loss.mean(dim=-1)  # [B, T, N]
+        criterion = nn.MSELoss(reduction='none')
+        loss = criterion(pred_patches, target_patches)   # [B, T, N, patch_dim]
+        loss = loss.mean(dim=-1)                         # [B, T, N]
+        # loss = (loss * mask).sum() / mask.sum()
         
-        # Avoid division by zero
-        mask_sum = mask.sum()
-        if mask_sum > 0:
-            loss = (loss * mask).sum() / mask_sum  # mean loss on masked patches
-        else:
-            loss = loss.mean()  # fallback to mean loss if no masked patches
+        total_pixels = mask.sum() * loss.shape[-1]
+        if total_pixels > 0:
+            loss = loss.sum() / total_pixels
+                
+        # loss = (pred_patches - target_patches) ** 2
+        # loss = loss.mean(dim=-1)  # [B, T, N]
         
+        # # Avoid division by zero
+        # mask_sum = mask.sum()
+        # if mask_sum > 0:
+        #     loss = (loss * mask).sum() / mask_sum  # mean loss on masked patches
+        # else:
+        #     loss = loss.mean() 
         
         return loss
     
@@ -134,7 +131,7 @@ class VitDecoder(baseTransformer):
     Encoder output vectors for the known patches
         
         Args:
-            encoded_features: [B, T, N, embed_dim] - encoded features from encoder
+            encoded_features: [B, T, N/N_keep, embed_dim] - encoded features from encoder
             masks: dict with modality keys and mask tensors [B, T, N]
             ids_restore: dict with modality keys and restore indices [B, T, N]
             targets: dict with modality keys and target data for loss computation
@@ -147,12 +144,11 @@ class VitDecoder(baseTransformer):
         
 
         # Project to decoder dimension
-        x = self.decoder_projection(encoded_features)  # [B, T, N, decoder_embed_dim]
-        
+        x = self.decoder_projection(encoded_features)  # [B, T, N_keep, decoder_embed_dim]
+        # print('x shape:', x.shape)
         if self.mode == 'training' and mask is not None:
-            # Add mask tokens for masked positions
+            # Extract image mask and ids_restore, add mask tokens for masked positions
             
-            # Extract image mask and ids_restore from dictionaries
             image_mask = mask['image'] 
             image_ids_restore = ids_restore['image']
                    
@@ -180,15 +176,16 @@ class VitDecoder(baseTransformer):
         # Final layer norm 
         x = self.decoder_norm(x)
         
-        # Generate predictions 
+        # Project predictions 
         pred_patches = self.decoder_pred_image(x)  # [B, T, N, ps*ps*C]
         
-        # Compute loss 
+        # Compute loss/ only in training mode
         loss = None
-        if target is not None:        
-            # Extract image mask from the dictionary
-            image_mask = mask['image'] 
-            loss = self.forward_loss(target, pred_patches, image_mask)
+        if self.mode == 'training':
+            if target is not None and mask['image'] is not None:   
+                target_patches = self.patchifier(target)
+                image_mask = mask['image'] 
+                loss = self.forward_loss(target_patches, pred_patches, image_mask)
         
         # Reconstruct full images from predicted patches
         recons = self.unpatchify(pred_patches)
