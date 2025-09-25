@@ -19,7 +19,7 @@ class baseTransformer(nn.Module, ABC):
         self.patch_size = config['data']['patch_size']
         self.max_objects =  config['data']['max_objects']
         self.encoder_embed_dim = config['vit_cfg']['encoder_embed_dim'] # encoder output
-        self.predictor_embed_dim = self.encoder_embed_dim # or five times this?! --> no , the input to predictor is five times this. This is the predictor output
+        # self.predictor_embed_dim = self.encoder_embed_dim # or five times this?! --> no , the input to predictor is five times this. This is the predictor output
         self.decoder_embed_dim = config['vit_cfg']['decoder_embed_dim'] # decoder input
         self.max_len = config['vit_cfg']['max_len']
         self.norm_pix_loss = config['vit_cfg']['norm_pix_loss']
@@ -30,6 +30,10 @@ class baseTransformer(nn.Module, ABC):
         self.attn_dim = config['vit_cfg']['attn_dim']
         self.num_heads = config['vit_cfg']['num_heads']
         self.mlp_size = config['vit_cfg']['mlp_size']
+        self.num_preds = config['vit_cfg']['num_preds']
+        self.predictor_window_size = config['vit_cfg']['predictor_window_size']
+        self.predictor_embed_dim = config['vit_cfg']['predictor_embed_dim']
+        self.residual = config['vit_cfg']['residual']
         
         self.encoder_depth = config['vit_cfg']['encoder_depth']
         self.decoder_depth = config['vit_cfg']['decoder_depth']
@@ -39,7 +43,7 @@ class baseTransformer(nn.Module, ABC):
         
         return
     
-    def get_projection(self, module_name, in_dim : None):
+    def get_projection(self, module_name):
         
         '''Prediction heads for different modalities'''
         
@@ -50,10 +54,11 @@ class baseTransformer(nn.Module, ABC):
                                 )
 
         elif module_name == 'decoder':
-            return nn.Linear(in_dim, self.decoder_embed_dim, bias=True)
+            return nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True)
         
-        elif module_name == 'predictor':
-            return nn.Linear(self.encoder_embed_dim, 5 * self.predictor_embed_dim, bias=True)  #TODO: CHECK!!
+        elif module_name == 'predictor': # input and output projection
+            return nn.Linear(self.encoder_embed_dim, self.predictor_embed_dim, bias=True),\
+                   nn.Linear(self.predictor_embed_dim, self.encoder_embed_dim, bias=True)  
 
         else:
             raise ModuleNotFoundError('The given module does not exist! or the configs are not correct')
