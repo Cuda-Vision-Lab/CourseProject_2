@@ -11,15 +11,15 @@ class TransformerAutoEncoder(nn.Module):
         
         self.encoder = encoder
         self.decoder = decoder        
-        ## mask ratio = 0.75
         
     def forward(self, images, masks=None, bboxes=None):
         
         encoded_features, all_masks, all_ids_restore = self.encoder(images, masks, bboxes)
         
-        # TODO: patchify the target images --- > it is already done in the decoder
+        # target images are patchified in the decoder
         
-        # Decode (only for image modality for now)
+        # Decode (only for image modality)
+        
         recons, loss = self.decoder(
                                     encoded_features, 
                                     all_masks, 
