@@ -81,7 +81,9 @@ class baseTrainer:
         # Setup scheduler
         # warmup epochs + cosine annealing
         warmup_epochs = self.cfg['training']['warmup_epochs']
-        self.scheduler = get_scheduler(self.optimizer, num_epochs=self.num_epochs, warmup_epochs= warmup_epochs) 
+        self.use_scheduler = self.cfg['training']['use_scheduler']
+        if self.use_scheduler:
+            self.scheduler = get_scheduler(self.optimizer, num_epochs=self.num_epochs, warmup_epochs= warmup_epochs) 
         
         return
 
@@ -215,7 +217,8 @@ class baseTrainer:
             self.writer.add_scalars('Loss/Comparison', ['Train', 'Validation'], [current_train_loss, current_val_loss], epoch+start_epoch)
             
             # Step scheduler
-            self.scheduler.step()
+            if self.use_scheduler:
+                self.scheduler.step()
             
             
             logging.info(f"Train loss: {round(current_train_loss, 5)}")

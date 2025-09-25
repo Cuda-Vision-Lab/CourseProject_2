@@ -10,7 +10,7 @@ config = {
 
                     'batch_size': 32,  # Reduced from 64 to improve memory efficiency
                     
-                    'patch_size': 32,
+                    'patch_size': 16,
                     
                     'max_objects' : 11,
                     
@@ -26,29 +26,34 @@ config = {
                             'shuffle': False,
                             'transforms': 'validation'
                                     },
+                        
                         'num_epochs':300,
 
-                        'warmup_epochs': 30,
+                        'warmup_epochs': 20,
+
+                        'early_stopping_patience': 15,
                         
-                        'model_name' : 'holistic_large_mask_0.25',
+                        'model_name' : '08_holistic_XL_lr_1e-3',
                         
-                        'lr' : 4e-4,
+                        'lr' : 1e-3,  # Reduced from 4e-3 for more stable training
                         
-                        'save_frequency': 50,
+                        'save_frequency': 25,
+                        
+                        'use_scheduler': True,
                         
                         'root' : '/home/user/soltania1/CourseProject_2/src',
                         },
          
             'vit_cfg': {
-                        'encoder_embed_dim' : 256, # Increased from 64
+                        'encoder_embed_dim' : 512, # Increased from 64
                         
-                        'decoder_embed_dim' : 256, # Increased from 64
+                        'decoder_embed_dim' : 384, # Increased to match encoder for better reconstruction
                         
-                        'max_len' : 256,
+                        'max_len' : 512,  # Reduced from 1024
                         
                         'in_out_channels' : 3,
                         
-                        'mask_ratio': 0.25, # Decreased from 0.75
+                        'mask_ratio': 0.75, # Further reduced for clearer reconstructions
                         
                         'norm_pix_loss' : True,
                         
@@ -56,17 +61,17 @@ config = {
 
                         'use_bboxes': True,
                         
-                        'attn_dim' : 256 ,
+                        'attn_dim' : 128 ,
 
-                        'num_heads' : 8, # Increased from 4
+                        'num_heads' : 8, # Must divide embed_dim evenly (256 ÷ 8 = 32)
 
-                        'mlp_size' : 1024, # Increased from 512
+                        'mlp_size' : 1024, # Moderate increase (was 1024, now between 1024-2048)
                         
-                        'encoder_depth' : 12, # Increased from 4
+                        'encoder_depth' : 12, # Moderate increase (was 12, now between 12-24)
                         
-                        'decoder_depth' : 6, # Increased from 2
+                        'decoder_depth' : 8, # Moderate increase (was 6, now between 6-12)
                         
-                        'predictor_depth' : 4,
+                        'predictor_depth' : 8,
                         
                         'num_preds' : 5, # number of predictor predictions
                         
