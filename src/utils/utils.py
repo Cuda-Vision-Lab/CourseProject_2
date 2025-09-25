@@ -213,41 +213,54 @@ class TensorboardWriter:
         self.add_scalars(plot_name=plot_name, val_names=dict.keys(), vals=dict.values(), step=step)
         return
     
-    def close(self):
-        """ Close the tensorboard writer properly """
-        if hasattr(self, 'writer') and self.writer is not None:
-            self.writer.flush()
-            self.writer.close()
-            
-    def __del__(self):
-        """ Ensure proper cleanup when object is destroyed """
-        self.close()
 
-    def _log_reconstruction_images(self, images, recons, in_grid, out_grid, epoch, batch_idx):
-        """
-        Visualization of input images vs reconstructions.
-        """
-        # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
-        recons_vis = recons.view(-1, recons.shape[2], recons.shape[3], recons.shape[4])[:8]
-        images_vis = images.view(-1, images.shape[2], images.shape[3], images.shape[4])[:8]
-        
-        # Create grids for visualization
-        input_grid = make_grid(images_vis, nrow=4, normalize=True, scale_each=True)
-        output_grid = make_grid(recons_vis, nrow=4, normalize=True, scale_each=True)
-        
-        # Log to TensorBoard with more descriptive names (DISABLED - not needed)
-        # self.writer.add_image(f'Validation/Input_Images_Batch_{batch_idx}', input_grid, step=epoch)
-        # self.writer.add_image(f'Validation/Reconstructions_Batch_{batch_idx}', output_grid, step=epoch)
-        
-        # Save to disk with batch info in filename
-        save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_epoch_{epoch}_batch_{batch_idx}.png"))
-        save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_epoch_{epoch}_batch_{batch_idx}.png"))
-        
-        # Optional: Create side-by-side comparison
-        comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Concatenate horizontally
-        # self.writer.add_image(f'Validation/Input_vs_Recons_Batch_{batch_idx}', comparison_grid, step=epoch)  # DISABLED
-        save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}_batch_{batch_idx}.png"))
+    def plot_reconstruction_images(self, images_vis, recons_vis, epoch, path, writer):
     
+        # Ensure data is on CPU and properly normalized for tensorboard
+        recons_vis = recons_vis.detach().cpu()
+        images_vis = images_vis.detach().cpu()
+        
+        # Normalize to [0, 1] range for tensorboard compatibility
+        def normalize_for_tensorboard(tensor):
+            # Handle different input ranges
+            if tensor.max() <= 1.0 and tensor.min() >= 0.0:
+                # Already in [0, 1] range
+                return tensor.clamp(0, 1)
+            elif tensor.max() <= 1.0 and tensor.min() >= -1.0:
+                # In [-1, 1] range, convert to [0, 1]
+                return (tensor + 1.0) / 2.0
+            else:
+                # Assume [0, 255] range or other, normalize to [0, 1]
+                tensor_min = tensor.min()
+                tensor_max = tensor.max()
+                return (tensor - tensor_min) / (tensor_max - tensor_min + 1e-8)
+        
+        recons_vis = normalize_for_tensorboard(recons_vis)
+        images_vis = normalize_for_tensorboard(images_vis)
+        
+        # Create grids with proper settings for tensorboard
+        nrow = 4
+        
+        # Use make_grid with normalize=False since we already normalized
+        input_grid = make_grid(images_vis, nrow=nrow, normalize=False, pad_value=1.0)
+        output_grid = make_grid(recons_vis, nrow=nrow, normalize=False, pad_value=1.0)
+        
+        # Add images to tensorboard with descriptive tags
+        if epoch == 0:
+            writer.add_image('Visualization/Imgs', input_grid, step=epoch)
+        writer.add_image('Visualization/Recons', output_grid, step=epoch)
+        
+        # Create side-by-side comparison for better visualization
+        comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Horizontal concatenation
+        writer.add_image('Visualization/Imgs_vs_Recons', comparison_grid, step=epoch)
+        
+        # Also save to disk for backup
+        save_image(input_grid, os.path.join(path, f"input_epoch_{epoch}.png"))
+        save_image(output_grid, os.path.join(path, f"recons_epoch_{epoch}.png"))
+        save_image(comparison_grid, os.path.join(path, f"comparison_epoch_{epoch}.png"))
+        
+        # Log success
+        logging.info(f"✅ Saved visualization images to tensorboard for epoch {epoch}")
 
 def plot_sequence_comparison(
     rgbs_orig, masks_orig, flows_orig, coords_orig,

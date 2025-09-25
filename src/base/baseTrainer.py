@@ -7,7 +7,7 @@ from torchvision.utils import save_image, make_grid
 import torchvision
 import logging
 from utils.logger import log_function
-from utils.utils import create_directory, set_random_seed, save_model, save_config
+from utils.utils import create_directory, set_random_seed, save_model, save_config, plot_sequence_comparison
 from model.model_utils import get_scheduler
 # from torch.utils.tensorboard import SummaryWriter
 from utils.utils import TensorboardWriter
@@ -69,14 +69,14 @@ class baseTrainer:
         self.num_epochs = self.cfg['training']['num_epochs']
         
         # Setup optimizer with better memory efficiency
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg['training']['lr'])
-        # self.optimizer = torch.optim.AdamW(
-        #     self.model.parameters(), 
-        #     lr=self.cfg['training']['lr'],
-        #     weight_decay=1e-4,  # Add weight decay for better generalization
-        #     eps=1e-8,
-        #     betas=(0.9, 0.95)  # Slightly more stable than default (0.9, 0.999)
-        # )
+        # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg['training']['lr'])
+        self.optimizer = torch.optim.AdamW(
+            self.model.parameters(), 
+            lr=self.cfg['training']['lr'],
+            weight_decay=1e-4,  # Add weight decay for better generalization
+            eps=1e-8,
+            betas=(0.9, 0.95)  # Slightly more stable than default (0.9, 0.999)
+        )
         
         # Setup scheduler
         # warmup epochs + cosine annealing
@@ -153,66 +153,14 @@ class baseTrainer:
             
             # Reconstruction image saving for visualization - optimized for tensorboard
             if epoch % 5 == 0 and batch_idx == 0:  # Use first batch for consistency
-                try:
+                
                     # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
                     B, T, C, H, W = recons.shape
-                    recons_flat = recons.view(B * T, C, H, W)
-                    images_flat = images.view(B * T, C, H, W)
+                    recons_vis = recons.view(B * T, C, H, W)[:8]
+                    images_vis = images.view(B * T, C, H, W)[:8]
                     
-                    # Select 8 samples for visualization (or fewer if not available)
-                    num_samples = min(8, recons_flat.shape[0])
-                    recons_vis = recons_flat[:num_samples]
-                    images_vis = images_flat[:num_samples]
-                    
-                    # Ensure data is on CPU and properly normalized for tensorboard
-                    recons_vis = recons_vis.detach().cpu()
-                    images_vis = images_vis.detach().cpu()
-                    
-                    # Normalize to [0, 1] range for tensorboard compatibility
-                    def normalize_for_tensorboard(tensor):
-                        # Handle different input ranges
-                        if tensor.max() <= 1.0 and tensor.min() >= 0.0:
-                            # Already in [0, 1] range
-                            return tensor.clamp(0, 1)
-                        elif tensor.max() <= 1.0 and tensor.min() >= -1.0:
-                            # In [-1, 1] range, convert to [0, 1]
-                            return (tensor + 1.0) / 2.0
-                        else:
-                            # Assume [0, 255] range or other, normalize to [0, 1]
-                            tensor_min = tensor.min()
-                            tensor_max = tensor.max()
-                            return (tensor - tensor_min) / (tensor_max - tensor_min + 1e-8)
-                    
-                    recons_vis = normalize_for_tensorboard(recons_vis)
-                    images_vis = normalize_for_tensorboard(images_vis)
-                    
-                    # Create grids with proper settings for tensorboard
-                    nrow = min(4, num_samples)  # Dynamic nrow based on available samples
-                    
-                    # Use make_grid with normalize=False since we already normalized
-                    input_grid = make_grid(images_vis, nrow=nrow, normalize=False, pad_value=1.0)
-                    output_grid = make_grid(recons_vis, nrow=nrow, normalize=False, pad_value=1.0)
-                    
-                    # Add images to tensorboard with descriptive tags
-                    self.writer.add_image('Validation/Input_Images', input_grid, step=epoch)
-                    self.writer.add_image('Validation/Reconstructions', output_grid, step=epoch)
-                    
-                    # Create side-by-side comparison for better visualization
-                    comparison_grid = torch.cat([input_grid, output_grid], dim=2)  # Horizontal concatenation
-                    self.writer.add_image('Validation/Input_vs_Reconstruction', comparison_grid, step=epoch)
-                    
-                    # Also save to disk for backup
-                    save_image(input_grid, os.path.join(self.tboard_logs_path, f"input_epoch_{epoch}.png"))
-                    save_image(output_grid, os.path.join(self.tboard_logs_path, f"recons_epoch_{epoch}.png"))
-                    save_image(comparison_grid, os.path.join(self.tboard_logs_path, f"comparison_epoch_{epoch}.png"))
-                    
-                    # Log success
-                    logging.info(f"✅ Saved {num_samples} visualization images to tensorboard for epoch {epoch}")
-                    
-                except Exception as e:
-                    logging.error(f"❌ Error saving images to tensorboard at epoch {epoch}: {str(e)}")
-                    # Continue training even if visualization fails
-
+                    self.writer.plot_reconstruction_images(images_vis, recons_vis, epoch, self.tboard_logs_path, self.writer)
+                 
             progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: valid loss {loss.item():.5f}. ")
 
             epoch_losses.append(loss.item())
@@ -320,9 +268,5 @@ class baseTrainer:
                    path=self.checkpoints_path,
                    save_type="final",
                    training_mode=self.training_mode)
-        
-        # Close tensorboard writer properly
-        logging.info("Closing tensorboard writer...")
-        self.writer.close()
         
         return 
