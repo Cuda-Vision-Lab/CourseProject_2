@@ -464,9 +464,7 @@ def get_scheduler(optimizer, num_epochs, warmup_epochs):
     warmup_scheduler = LambdaLR(optimizer, lr_lambda=warmup_lambda)
 
     # --- Cosine Annealing after warmup ---
-    # cosine_scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs - warmup_epochs)
-    cosine_scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs)
-    
+    cosine_scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs - warmup_epochs)
 
     # --- Combination of the two schedulers ---
     scheduler = SequentialLR(
@@ -474,4 +472,4 @@ def get_scheduler(optimizer, num_epochs, warmup_epochs):
         schedulers=[warmup_scheduler, cosine_scheduler],
         milestones=[warmup_epochs]  # switch after warmup_epochs
     )
-    return cosine_scheduler
+    return scheduler
