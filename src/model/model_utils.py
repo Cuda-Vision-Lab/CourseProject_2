@@ -303,8 +303,8 @@ class PositionalEncoding(nn.Module):
         batch_size, seq_len, num_tokens, token_dim = x.shape
         # Repeat for batch and truncate to actual sequence length
         cur_pe = self.pe.repeat(batch_size, seq_len, 1, 1)[:, :, :num_tokens, :]
-        print(f"Cur pe shape: {cur_pe.shape}")
-        print(f"X entering pe shape: {x.shape}")
+        # print(f"Cur pe shape: {cur_pe.shape}")
+        # print(f"X entering pe shape: {x.shape}")
         y = x + cur_pe # Adding the positional encoding to the input tokens
         return y        
    
