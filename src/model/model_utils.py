@@ -254,108 +254,108 @@ class Patchifier:
 
         return patch_data
     
-# class PositionalEncoding(nn.Module):
-#     """
-#     Sinusoidal Positional encoding 
-
-#     Args:
-#     -----
-#     d_model: int
-#         Dimensionality of the tokens
-#     max_len: int
-#         Length of the sequence.
-#     """
-
-#     def __init__(self, d_model, max_len=64):
-#         """
-#         Initializing the positional encoding
-#         """
-#         super().__init__()
-#         self.d_model = d_model #  The dimensionality of token embeddings
-#         self.max_len = max_len #  Maximum sequence length the model can handle (default 64)
-#         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-#         # initializing embedding
-#         self.pe = self._get_pe()
-#         return
-
-#     def _get_pe(self):
-#         """
-#         Initializing the temporal positional encoding given the encoding mode
-#         """
-#         max_len = self.max_len
-#         d_model = self.d_model
-        
-#         pe = torch.zeros(max_len, d_model) # Creates a zero tensor - one row per position
-#         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-#         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-#         pe[:, 0::2] = torch.sin(position * div_term) # Even dimensions get sine
-#         pe[:, 1::2] = torch.cos(position * div_term) # Odd dimensions get cosine
-#         pe = pe.view(1, max_len, d_model)
-#         return pe
-
-#     def forward(self, x):
-#         """
-#         Adding the positional encoding to the input tokens of the transformer
-#         """
-#         if x.device != self.pe.device:
-#             self.pe = self.pe.to(self.device)
-#         batch_size, seq_len, num_tokens, token_dim = x.shape
-#         # Repeat for batch and truncate to actual sequence length
-#         cur_pe = self.pe.repeat(batch_size, seq_len, 1, 1)[:, :, :num_tokens, :]
-#         print(f"Cur pe shape: {cur_pe.shape}")
-#         print(f"X entering pe shape: {x.shape}")
-#         y = x + cur_pe # Adding the positional encoding to the input tokens
-#         return y        
-   
-
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_spatial_len=8, max_temporal_len=24):
+    """
+    Sinusoidal Positional encoding 
+
+    Args:
+    -----
+    d_model: int
+        Dimensionality of the tokens
+    max_len: int
+        Length of the sequence.
+    """
+
+    def __init__(self, d_model, max_len=64):
+        """
+        Initializing the positional encoding
+        """
         super().__init__()
-        self.d_model = d_model
-        self.max_spatial_len = max_spatial_len
-        self.max_temporal_len = max_temporal_len
+        self.d_model = d_model #  The dimensionality of token embeddings
+        self.max_len = max_len #  Maximum sequence length the model can handle (default 64)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Precompute 2D spatial PE [1, 1, N, d_model//2]
-        N = max_spatial_len ** 2
-        d_spatial = d_model // 2
-        pe_spatial = torch.zeros(1, 1, N, d_spatial)
-        position_h = torch.arange(0, max_spatial_len, dtype=torch.float).unsqueeze(1).repeat(1, max_spatial_len).view(-1, 1)  # [N, 1]
-        position_w = torch.arange(0, max_spatial_len, dtype=torch.float).unsqueeze(0).repeat(max_spatial_len, 1).view(-1, 1)  # [N, 1]
+        # initializing embedding
+        self.pe = self._get_pe()
+        return
 
-        d_half = d_spatial // 2  # d_model//4
-        div_term = torch.exp(torch.arange(0, d_half, 2).float() * (-math.log(10000.0) / d_half))  # length d_half//2
-
-        # H encodings: first d_half dims
-        pe_spatial[0, 0, :, 0:d_half:2] = torch.sin(position_h * div_term)
-        pe_spatial[0, 0, :, 1:d_half:2] = torch.cos(position_h * div_term)
-
-        # W encodings: next d_half dims
-        pe_spatial[0, 0, :, d_half:d_spatial:2] = torch.sin(position_w * div_term)
-        pe_spatial[0, 0, :, d_half + 1:d_spatial:2] = torch.cos(position_w * div_term)
-        self.pe_spatial = pe_spatial
-        # 1D temporal PE [1, max_t, 1, d_model//2]
-        d_temporal = d_model // 2
-        pe_temporal = torch.zeros(1, max_temporal_len, 1, d_temporal)
-        position_t = torch.arange(0, max_temporal_len, dtype=torch.float).unsqueeze(1)  # [max_t, 1]
-        div_term_t = torch.exp(torch.arange(0, d_temporal, 2).float() * (-math.log(10000.0) / d_temporal))  # length d_temporal//2
-
-        pe_temporal[0, :, 0, 0::2] = torch.sin(position_t * div_term_t)
-        pe_temporal[0, :, 0, 1::2] = torch.cos(position_t * div_term_t)
-        self.pe_temporal = pe_temporal
-        # print(f"Pe spatial shape: {pe_temporal.shape}")
+    def _get_pe(self):
+        """
+        Initializing the temporal positional encoding given the encoding mode
+        """
+        max_len = self.max_len
+        d_model = self.d_model
+        
+        pe = torch.zeros(max_len, d_model) # Creates a zero tensor - one row per position
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term) # Even dimensions get sine
+        pe[:, 1::2] = torch.cos(position * div_term) # Odd dimensions get cosine
+        pe = pe.view(1, max_len, d_model)
+        return pe
 
     def forward(self, x):
-        B, T, N, D = x.shape        
-        pe_spatial = self.pe_spatial.repeat(B, T, 1, 1)  # [B, T, N, D//2]
-        # print(f"Pe spatial shape: {pe_spatial.shape}")
-        pe_temporal = self.pe_temporal.repeat(B, 1, N, 1)[: , :T, :, :]  # Adjust for actual T
-        # print(f"Pe temporal shape: {pe_temporal.shape}")
-        pe = torch.cat([pe_spatial, pe_temporal], dim=-1).to(x.device)
-        # print(f"Pe shape: {pe.shape}")
-        # print(f"X in pe shape: {x.shape}")
-        return x + pe
+        """
+        Adding the positional encoding to the input tokens of the transformer
+        """
+        if x.device != self.pe.device:
+            self.pe = self.pe.to(self.device)
+        batch_size, seq_len, num_tokens, token_dim = x.shape
+        # Repeat for batch and truncate to actual sequence length
+        cur_pe = self.pe.repeat(batch_size, seq_len, 1, 1)[:, :, :num_tokens, :]
+        print(f"Cur pe shape: {cur_pe.shape}")
+        print(f"X entering pe shape: {x.shape}")
+        y = x + cur_pe # Adding the positional encoding to the input tokens
+        return y        
+   
+
+# class PositionalEncoding(nn.Module):
+#     def __init__(self, d_model, max_spatial_len=8, max_temporal_len=24):
+#         super().__init__()
+#         self.d_model = d_model
+#         self.max_spatial_len = max_spatial_len
+#         self.max_temporal_len = max_temporal_len
+#         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#         # Precompute 2D spatial PE [1, 1, N, d_model//2]
+#         N = max_spatial_len ** 2
+#         d_spatial = d_model // 2
+#         pe_spatial = torch.zeros(1, 1, N, d_spatial)
+#         position_h = torch.arange(0, max_spatial_len, dtype=torch.float).unsqueeze(1).repeat(1, max_spatial_len).view(-1, 1)  # [N, 1]
+#         position_w = torch.arange(0, max_spatial_len, dtype=torch.float).unsqueeze(0).repeat(max_spatial_len, 1).view(-1, 1)  # [N, 1]
+
+#         d_half = d_spatial // 2  # d_model//4
+#         div_term = torch.exp(torch.arange(0, d_half, 2).float() * (-math.log(10000.0) / d_half))  # length d_half//2
+
+#         # H encodings: first d_half dims
+#         pe_spatial[0, 0, :, 0:d_half:2] = torch.sin(position_h * div_term)
+#         pe_spatial[0, 0, :, 1:d_half:2] = torch.cos(position_h * div_term)
+
+#         # W encodings: next d_half dims
+#         pe_spatial[0, 0, :, d_half:d_spatial:2] = torch.sin(position_w * div_term)
+#         pe_spatial[0, 0, :, d_half + 1:d_spatial:2] = torch.cos(position_w * div_term)
+#         self.pe_spatial = pe_spatial
+#         # 1D temporal PE [1, max_t, 1, d_model//2]
+#         d_temporal = d_model // 2
+#         pe_temporal = torch.zeros(1, max_temporal_len, 1, d_temporal)
+#         position_t = torch.arange(0, max_temporal_len, dtype=torch.float).unsqueeze(1)  # [max_t, 1]
+#         div_term_t = torch.exp(torch.arange(0, d_temporal, 2).float() * (-math.log(10000.0) / d_temporal))  # length d_temporal//2
+
+#         pe_temporal[0, :, 0, 0::2] = torch.sin(position_t * div_term_t)
+#         pe_temporal[0, :, 0, 1::2] = torch.cos(position_t * div_term_t)
+#         self.pe_temporal = pe_temporal
+#         # print(f"Pe spatial shape: {pe_temporal.shape}")
+
+#     def forward(self, x):
+#         B, T, N, D = x.shape        
+#         pe_spatial = self.pe_spatial.repeat(B, T, 1, 1)  # [B, T, N, D//2]
+#         # print(f"Pe spatial shape: {pe_spatial.shape}")
+#         pe_temporal = self.pe_temporal.repeat(B, 1, N, 1)[: , :T, :, :]  # Adjust for actual T
+#         # print(f"Pe temporal shape: {pe_temporal.shape}")
+#         pe = torch.cat([pe_spatial, pe_temporal], dim=-1).to(x.device)
+#         # print(f"Pe shape: {pe.shape}")
+#         # print(f"X in pe shape: {x.shape}")
+#         return x + pe
     
 class MaskEncoder(nn.Module):
     """
