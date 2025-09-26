@@ -81,7 +81,8 @@ class VitDecoder(baseTransformer):
             targets: [B, T, N, patch_dim] 
             pred: [B, T, N, patch_dim] - predicted patches
         """
-        loss = nn.MSELoss(target_patches, pred_patches)
+        loss_fn = nn.MSELoss()
+        loss = loss_fn(target_patches, pred_patches)
         
         return loss
     
