@@ -29,9 +29,6 @@ class ObjectCentricEncoder(baseTransformer):
         self.mask_ratio = mask_ratio
 
         super().__init__(config=config)
-        
-        # encoder_embed_dim = config['vit_cfg']['encoder_embed_dim'] # encoder output
-        # encoder_depth = config['vit_cfg']['encoder_depth']
 
         # Projection to transformer token dimension
         self.patch_projection = self.get_projection('encoder')
@@ -134,76 +131,42 @@ class ObjectCentricEncoder(baseTransformer):
         modality_emb = self.modality_embeddings(torch.zeros(B, T, 1, device=images.device, dtype=torch.long))
         image_tokens = image_tokens + modality_emb
 
-        if self.mode == 'training':
 
+        # Process images based on mode, with or without masking
+        if self.mode == 'training':
             # Process images
             image_tokens, image_mask, image_ids_restore = self.random_masking(image_tokens, mask_ratio= self.mask_ratio)
             all_tokens.append(image_tokens)
             all_masks["image"] = image_mask
             all_ids_restore["image"] = image_ids_restore
-            
-            
-            # Process masks if provided
-            if self.use_masks and masks is not None:
-                mask_tokens = self.mask_encoder(masks['masks'])
-                mask_tokens = self.encoder_pos_embed(mask_tokens)
-                
-                # Add modality embedding for masks
-                modality_emb = self.modality_embeddings(torch.ones(B, T, 1, device=masks['masks'].device, dtype=torch.long))
-                mask_tokens = mask_tokens + modality_emb
-                
-                # Apply masking to masks
-                mask_masked, mask_mask, mask_ids_restore = self.random_masking(mask_tokens, mask_ratio= self.mask_ratio)
-                all_tokens.append(mask_masked)
-                # all_masks["mask"] = mask_mask
-                # all_ids_restore["mask"] = mask_ids_restore
-            
-            # Process bounding boxes if provided
-            if self.use_bboxes and bboxes is not None:
-                bbox_tokens = self.bbox_encoder(bboxes)
-                bbox_tokens = self.encoder_pos_embed(bbox_tokens)
-                
-                # Add modality embedding for bboxes
-                modality_emb = self.modality_embeddings(torch.full((B, T, 1), 2, device=bboxes.device, dtype=torch.long))
-                bbox_tokens = bbox_tokens + modality_emb
-                
-                # Apply masking to bboxes
-                bbox_masked, bbox_mask, bbox_ids_restore = self.random_masking(bbox_tokens, mask_ratio= self.mask_ratio)
-                all_tokens.append(bbox_masked)
-                # all_masks["bbox"] = bbox_mask
-                # all_ids_restore["bbox"] = bbox_ids_restore
-
+        
+        
         else:
             # no masking in inference and predictor training mode
             all_tokens.append(image_tokens)
-            all_masks["image"] = torch.zeros(B, T, image_tokens.shape[2], device=image_tokens.device)
-            all_ids_restore["image"] = torch.arange(image_tokens.shape[2], device=image_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
+            all_masks["image"] = None
+            all_ids_restore["image"] = None
             
-            if self.use_masks and masks is not None:
-                mask_tokens = self.mask_encoder(masks['masks'])
-                mask_tokens = self.encoder_pos_embed(mask_tokens)
-                
-                # Add modality embedding for masks
-                modality_emb = self.modality_embeddings(torch.ones(B, T, 1, device=masks['masks'].device, dtype=torch.long))
-                mask_tokens = mask_tokens + modality_emb
-                
-                all_tokens.append(mask_tokens)
-                # all_masks["mask"] = torch.zeros(B, T, mask_tokens.shape[2], device=mask_tokens.device)
-                # all_ids_restore["mask"] = torch.arange(mask_tokens.shape[2], device=mask_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
+        # Process masks if provided - we don't need to mask the mask tokens
+        if self.use_masks and masks is not None:
+            mask_tokens = self.mask_encoder(masks['masks'])
+            mask_tokens = self.encoder_pos_embed(mask_tokens)
             
-            if self.use_bboxes and bboxes is not None:
-                bbox_tokens = self.bbox_encoder(bboxes)
-                bbox_tokens = self.encoder_pos_embed(bbox_tokens)
-                
-                # Add modality embedding for bboxes
-                modality_emb = self.modality_embeddings(torch.full((B, T, 1), 2, device=bboxes.device, dtype=torch.long))
-                bbox_tokens = bbox_tokens + modality_emb
-                
-                all_tokens.append(bbox_tokens)
-                # all_masks["bbox"] = torch.zeros(B, T, bbox_tokens.shape[2], device=bbox_tokens.device)
-                # all_ids_restore["bbox"] = torch.arange(bbox_tokens.shape[2], device=bbox_tokens.device).unsqueeze(0).unsqueeze(0).expand(B, T, -1)
-                
-        
+            # Add modality embedding for masks
+            modality_emb = self.modality_embeddings(torch.ones(B, T, 1, device=masks['masks'].device, dtype=torch.long))
+            mask_tokens = mask_tokens + modality_emb
+            all_tokens.append(mask_tokens)
+
+        # Process bounding boxes if provided - we don't need to mask the bbox tokens
+        if self.use_bboxes and bboxes is not None:
+            bbox_tokens = self.bbox_encoder(bboxes)
+            bbox_tokens = self.encoder_pos_embed(bbox_tokens)
+            
+            # Add modality embedding for bboxes
+            modality_emb = self.modality_embeddings(torch.full((B, T, 1), 2, device=bboxes.device, dtype=torch.long))
+            bbox_tokens = bbox_tokens + modality_emb
+            all_tokens.append(bbox_tokens)
+
         # Concatenate all tokens
         if len(all_tokens) > 1:
             # Pad shorter sequences to match the longest
@@ -229,4 +192,6 @@ class ObjectCentricEncoder(baseTransformer):
 
         encoded_features = self.encoder_norm(encoded_features)
 
+        encoded_features = self.encoder_norm(encoded_features)
+        
         return encoded_features, all_masks, all_ids_restore
