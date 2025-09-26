@@ -220,23 +220,66 @@ class TensorboardWriter:
         recons_vis = recons_vis.detach().cpu()
         images_vis = images_vis.detach().cpu()
         
-        # Normalize to [0, 1] range for tensorboard compatibility
-        def normalize_for_tensorboard(tensor):
-            # Handle different input ranges
-            if tensor.max() <= 1.0 and tensor.min() >= 0.0:
-                # Already in [0, 1] range
-                return tensor.clamp(0, 1)
-            elif tensor.max() <= 1.0 and tensor.min() >= -1.0:
-                # In [-1, 1] range, convert to [0, 1]
-                return (tensor + 1.0) / 2.0
+        # Robust normalization function that handles varying tensor ranges consistently
+        def normalize_for_tensorboard_robust(tensor, reference_tensor=None):
+            """
+            Normalize tensor to [0, 1] range using consistent approach.
+            
+            Args:
+                tensor: Input tensor to normalize
+                reference_tensor: Optional reference tensor to use for consistent scaling
+            """
+            # Use reference tensor statistics if provided (for consistent scaling)
+            if reference_tensor is not None:
+                ref_min = reference_tensor.min()
+                ref_max = reference_tensor.max()
+                
+                # Determine the likely data range from reference
+                if ref_max <= 1.1 and ref_min >= -0.1:
+                    # Likely [0, 1] or [-1, 1] range
+                    if ref_min >= -0.1:
+                        # [0, 1] range
+                        return torch.clamp(tensor, 0, 1)
+                    else:
+                        # [-1, 1] range, convert to [0, 1]
+                        return torch.clamp((tensor + 1.0) / 2.0, 0, 1)
+                else:
+                    # Likely [0, 255] or other range, use reference min/max
+                    return torch.clamp((tensor - ref_min) / (ref_max - ref_min + 1e-8), 0, 1)
+            
+            # Fallback: use tensor's own statistics
+            tensor_min = tensor.min()
+            tensor_max = tensor.max()
+            
+            # More robust range detection with tolerance
+            if tensor_max <= 1.1 and tensor_min >= -0.1:
+                if tensor_min >= -0.1:
+                    # [0, 1] range
+                    return torch.clamp(tensor, 0, 1)
+                else:
+                    # [-1, 1] range, convert to [0, 1]
+                    return torch.clamp((tensor + 1.0) / 2.0, 0, 1)
             else:
-                # Assume [0, 255] range or other, normalize to [0, 1]
-                tensor_min = tensor.min()
-                tensor_max = tensor.max()
-                return (tensor - tensor_min) / (tensor_max - tensor_min + 1e-8)
+                # Other range, normalize using min-max
+                return torch.clamp((tensor - tensor_min) / (tensor_max - tensor_min + 1e-8), 0, 1)
         
-        recons_vis = normalize_for_tensorboard(recons_vis)
-        images_vis = normalize_for_tensorboard(images_vis)
+        # Normalize images first (as reference)
+        images_vis = normalize_for_tensorboard_robust(images_vis)
+        
+        # Normalize reconstructions using the same approach as images for consistency
+        recons_vis = normalize_for_tensorboard_robust(recons_vis, reference_tensor=images_vis)
+        
+        # Additional safety: ensure both are in [0, 1] range
+        images_vis = torch.clamp(images_vis, 0, 1)
+        recons_vis = torch.clamp(recons_vis, 0, 1)
+        
+        # Final check: if reconstructions still look wrong, apply percentile-based normalization
+        if recons_vis.max() > 0.99 and recons_vis.min() < 0.01:
+            # Use percentile-based normalization for extreme cases
+            recons_p1 = torch.quantile(recons_vis, 0.01)
+            recons_p99 = torch.quantile(recons_vis, 0.99)
+            if recons_p99 > recons_p1:
+                recons_vis = torch.clamp((recons_vis - recons_p1) / (recons_p99 - recons_p1), 0, 1)
         
         # Create grids with proper settings for tensorboard
         nrow = 4
@@ -259,7 +302,7 @@ class TensorboardWriter:
         save_image(output_grid, os.path.join(path, f"recons_epoch_{epoch}.png"))
         save_image(comparison_grid, os.path.join(path, f"comparison_epoch_{epoch}.png"))
         
-        # Log success
+        # Log normalization info for debugging
         logging.info(f"✅ Saved visualization images to tensorboard for epoch {epoch}")
 
 def plot_sequence_comparison(
