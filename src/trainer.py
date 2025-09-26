@@ -6,7 +6,7 @@ import setproctitle
 from model.ocvp import TransformerAutoEncoder, TransformerPredictor, OCVP
 # from model.encoder import MultiModalVitEncoder
 from model.decoder import VitDecoder
-from model.predictor import Predictor
+from model.predictor import TransformerPredictor, PredictorWrapper
 from model.holistic_encoder import HolisticEncoder
 from model.oc_encoder import ObjectCentricEncoder
 from utils.utils import load_model, count_model_params
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     if args.ae:
         
         '''Autoencoder training mode'''
-        setproctitle.setproctitle(f"{model_name}_AE")
+        setproctitle.setproctitle(f"{model_name}")
         logging.info(f"AUTOENCODER TRAINING MODE --> Scene Representation: {args.scene_rep}")
         
         if not args.ackpt:
@@ -54,7 +54,7 @@ if __name__ == "__main__":
             print()
      
         # Create autoencoder model
-        mask_ratio = config['vit_cfg']['mask_ratio']
+        # mask_ratio = config['vit_cfg']['mask_ratio']
         encoder = get_encoder(scene_rep = args.scene_rep, mode= 'training')
         decoder = VitDecoder(mode= 'training')
         
@@ -71,7 +71,7 @@ if __name__ == "__main__":
         logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
         logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
         logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
-        logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
+        # logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
         logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
         logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
         
@@ -95,7 +95,7 @@ if __name__ == "__main__":
         # Load AE weights
         encoder, decoder,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
         
-        predictor = Predictor()
+        predictor = PredictorWrapper(TransformerPredictor())
         
         model = TransformerPredictor(encoder, predictor)
         model.encoder.requires_grad_(False)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
         encoder = get_encoder(scene_rep = args.scene_rep, mode= 'inference')          
         decoder = VitDecoder(mode='inference')
-        predictor = Predictor()
+        predictor = PredictorWrapper(TransformerPredictor())
          
         encoder,_,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
         decoder,_,_,_= load_model(model= decoder, savepath= args.ackpt) # TODO: also pass optimizer here

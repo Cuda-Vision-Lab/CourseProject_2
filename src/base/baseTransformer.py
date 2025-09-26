@@ -22,7 +22,7 @@ class baseTransformer(nn.Module, ABC):
         # self.predictor_embed_dim = self.encoder_embed_dim # or five times this?! --> no , the input to predictor is five times this. This is the predictor output
         self.decoder_embed_dim = config['vit_cfg']['decoder_embed_dim'] # decoder input
         self.max_len = config['vit_cfg']['max_len']
-        self.norm_pix_loss = config['vit_cfg']['norm_pix_loss']
+        # self.norm_pix_loss = config['vit_cfg']['norm_pix_loss']
         self.out_chans = self.in_chans =  config['vit_cfg']['in_out_channels']
         self.use_masks =  config['vit_cfg']['use_masks']
         self.use_bboxes = config['vit_cfg']['use_bboxes']
