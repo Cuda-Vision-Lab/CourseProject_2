@@ -33,7 +33,7 @@ config = {
 
                         'early_stopping_patience': 15,
                         
-                        'model_name' : '09_holistic_XL_lr_1e-3',
+                        'model_name' : '01_Holistic_AE_XL',
                         
                         'lr' : 1e-3,  # Reduced from 4e-3 for more stable training
                         
@@ -63,7 +63,7 @@ config = {
 
                         'num_heads' : 8, # Must divide embed_dim evenly (256 ÷ 8 = 32)
 
-                        'mlp_size' : 2048, # Moderate increase (was 1024, now between 1024-2048)
+                        'mlp_size' : 1024, # Moderate increase (was 1024, now between 1024-2048)
                         
                         'encoder_depth' : 12, # Moderate increase (was 12, now between 12-24)
                         
@@ -82,8 +82,5 @@ config = {
                         
                         },
 
-
          
-         
-                
 }
