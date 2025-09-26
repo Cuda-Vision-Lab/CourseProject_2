@@ -14,7 +14,7 @@ class TransformerAutoEncoder(nn.Module):
         
     def forward(self, images, masks=None, bboxes=None):
         
-        encoded_features, all_masks, all_ids_restore = self.encoder(images, masks, bboxes)
+        encoded_features = self.encoder(images, masks, bboxes)
         
         # target images are patchified in the decoder
         
@@ -22,8 +22,6 @@ class TransformerAutoEncoder(nn.Module):
         
         recons, loss = self.decoder(
                                     encoded_features, 
-                                    all_masks, 
-                                    all_ids_restore, 
                                     target=images
                                     )
         return recons, loss

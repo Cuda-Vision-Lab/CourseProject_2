@@ -85,6 +85,8 @@ class baseTrainer:
         if self.use_scheduler:
             self.scheduler = get_scheduler(self.optimizer, num_epochs=self.num_epochs, warmup_epochs= warmup_epochs) 
         
+        self.use_early_stopping = self.cfg['training']['use_early_stopping']
+        
         return
 
     
@@ -241,10 +243,11 @@ class baseTrainer:
                 logging.info(f"🎉 New best validation loss: {round(best_val_loss, 5)}")
             else:
                 epochs_without_improvement += 1
+                logging.warning(f"No improvement for {epochs_without_improvement} epochs!!")
                 save_type = "checkpoint"
                 
             # Early stopping check
-            if epochs_without_improvement >= early_stopping_patience:
+            if self.use_early_stopping and epochs_without_improvement >= early_stopping_patience:
                 logging.info(f"🛑 Early stopping triggered! No improvement for {early_stopping_patience} epochs.")
                 break
                 

@@ -12,12 +12,12 @@ from model.oc_encoder import ObjectCentricEncoder
 from utils.utils import load_model, count_model_params
 from torch.utils.tensorboard import SummaryWriter
   
-def get_encoder(scene_rep, mode, mask_ratio ):
+def get_encoder(scene_rep, mode ):
     if scene_rep == 'holistic':
-        return HolisticEncoder(mode= mode ,mask_ratio = mask_ratio)
+        return HolisticEncoder(mode= mode)
     
     elif scene_rep == 'oc':
-        return ObjectCentricEncoder(mode= mode, mask_ratio = mask_ratio)
+        return ObjectCentricEncoder(mode= mode)
     else:
         raise ValueError(f"Invalid scene representation type: {scene_rep}")
     
@@ -55,7 +55,7 @@ if __name__ == "__main__":
      
         # Create autoencoder model
         mask_ratio = config['vit_cfg']['mask_ratio']
-        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'training',mask_ratio = mask_ratio)
+        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'training')
         decoder = VitDecoder(mode= 'training')
         
         model = TransformerAutoEncoder(encoder, decoder)
@@ -90,15 +90,16 @@ if __name__ == "__main__":
         if not args.ackpt:
             raise FileNotFoundError("Please specify the checkpoint to the pretrained AutoEncoder model")
             
-        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'predictor',mask_ratio = 0.0)
+        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'predictor')
         
         # Load AE weights
-        encoder,_,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
+        encoder, decoder,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
         
         predictor = Predictor()
         
         model = TransformerPredictor(encoder, predictor)
         model.encoder.requires_grad_(False)
+        model.decoder.requires_grad_(False)
         
         training_mode = "Predictor"
         
@@ -128,7 +129,7 @@ if __name__ == "__main__":
             raise FileNotFoundError("Please specify the checkpoint to both pretrained AutoEncoder and Predictor models")
         
 
-        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'inference',mask_ratio = 0.0)          
+        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'inference')          
         decoder = VitDecoder(mode='inference')
         predictor = Predictor()
          

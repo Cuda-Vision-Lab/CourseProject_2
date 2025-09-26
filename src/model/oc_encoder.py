@@ -23,10 +23,10 @@ class ObjectCentricEncoder(baseTransformer):
     """ 
     Vision Transformer for image reconstruction task
     """
-    def __init__(self , mode, mask_ratio):
+    def __init__(self , mode):
 
         self.mode = mode
-        self.mask_ratio = mask_ratio
+        # self.mask_ratio = mask_ratio
 
         super().__init__(config=config)
 

@@ -82,31 +82,6 @@ class VitDecoder(baseTransformer):
             pred: [B, T, N, patch_dim] - predicted patches
         """
         loss = nn.MSELoss(target_patches, pred_patches)
-        # Normalize if specified
-        # if self.norm_pix_loss:
-        #     mean = target_patches.mean(dim=-1, keepdim=True)
-        #     var = target_patches.var(dim=-1, keepdim=True)
-        #     target_patches = (target_patches - mean) / (var + 1.e-6)**.5
-        
-        # # Compute loss
-        # criterion = nn.MSELoss(reduction='none')
-        # loss = criterion(pred_patches, target_patches)   # [B, T, N, patch_dim]
-        # loss = loss.mean(dim=-1)                         # [B, T, N]
-        # # loss = (loss * mask).sum() / mask.sum()
-        
-        # total_pixels = mask.sum() * loss.shape[-1]
-        # if total_pixels > 0:
-        #     loss = loss.sum() / total_pixels
-                
-        # loss = (pred_patches - target_patches) ** 2
-        # loss = loss.mean(dim=-1)  # [B, T, N]
-        
-        # # Avoid division by zero
-        # mask_sum = mask.sum()
-        # if mask_sum > 0:
-        #     loss = (loss * mask).sum() / mask_sum  # mean loss on masked patches
-        # else:
-        #     loss = loss.mean() 
         
         return loss
     
