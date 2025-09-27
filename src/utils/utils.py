@@ -107,16 +107,18 @@ def save_config(config, path, experiment_name):
         json.dump(config, f, indent=4)
     return
 
-def load_model(model, optimizer, savepath):
+def load_model(model, mode, savepath):
     """ Loading pretrained checkpoint """
     
-    checkpoint = torch.load(savepath, map_location="cpu")
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    epoch = checkpoint["epoch"]
-    stats = checkpoint["stats"]
+    checkpoint = torch.load(savepath, map_location="cpu", weights_only=False)
     
-    return model, optimizer, epoch, stats
+    if mode == "Autoencoder":
+        model.encoder.load_state_dict(checkpoint['encoder_state_dict'])
+        model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
+    elif mode == "Predictor":
+        model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
+    
+    return model
 
 
 def count_model_params(model):
