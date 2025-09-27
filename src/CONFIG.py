@@ -15,6 +15,10 @@ config = {
                     'max_objects' : 11,
                     
                     'num_workers': 8,  # Use 8 CPU cores for data loading
+                    
+                    'image_height' : 128,
+                    
+                    'image_width' : 128,
                     },
  
             'training': {         
@@ -27,13 +31,13 @@ config = {
                             'transforms': 'validation'
                                     },
                         
-                        'num_epochs':300,
+                        'num_epochs':100,
 
-                        'warmup_epochs': 20,
+                        'warmup_epochs': 5,
 
-                        'early_stopping_patience': 15,
+                        'early_stopping_patience': 10,
                         
-                        'model_name' : '01_Holistic_AE_XL',
+                        'model_name' : '01_OC_AE_XL',
                         
                         'lr' : 1e-3,  # Reduced from 4e-3 for more stable training
                         
@@ -57,7 +61,7 @@ config = {
                         
                         'use_masks': True,
 
-                        'use_bboxes': True,
+                        'use_bboxes': False,
                         
                         'attn_dim' : 128 ,
 
