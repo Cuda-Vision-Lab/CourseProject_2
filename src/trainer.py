@@ -1,35 +1,75 @@
+"""
+Trainer for Autoencoder, Predictor, and Inference modes.
+"""
+
 from base.baseTrainer import baseTrainer
 from CONFIG import config
 import argparse
 import logging
 import setproctitle
 from model.ocvp import TransformerAutoEncoder, TransformerPredictor, OCVP
-# from model.encoder import MultiModalVitEncoder
-from model.holistic_decoder import HolisticDecoder
-from model.holistic_predictor import TransformerPredictor, PredictorWrapper
 from model.holistic_encoder import HolisticEncoder
+from model.holistic_decoder import HolisticDecoder
+from model.holistic_predictor import HolisticTransformerPredictor
+from model.predictor_wrapper import PredictorWrapper
 from model.oc_encoder import ObjectCentricEncoder
 from model.oc_decoder import ObjectCentricDecoder
+from model.oc_predictor import ObjectCentricTransformerPredictor
 from utils.utils import load_model, count_model_params
-from torch.utils.tensorboard import SummaryWriter
   
-def get_encoder(scene_rep, mode ):
+def get_encoder(scene_rep):
+    """
+    Get the encoder for the given scene representation
+    """
     if scene_rep == 'holistic':
-        return HolisticEncoder(mode= mode)
-    
+        return HolisticEncoder()  
     elif scene_rep == 'oc':
-        return ObjectCentricEncoder(mode= mode)
+        return ObjectCentricEncoder()
     else:
         raise ValueError(f"Invalid scene representation type: {scene_rep}")
-    
-def get_decoder(scene_rep, mode):
+
+def get_decoder(scene_rep):
+    """
+    Get the decoder for the given scene representation
+    """
     if scene_rep == 'holistic':
-        return HolisticDecoder(mode= mode)
+        return HolisticDecoder()
     elif scene_rep == 'oc':
-        return ObjectCentricDecoder(mode= mode)
+        return ObjectCentricDecoder()
     else:
         raise ValueError(f"Invalid scene representation type: {scene_rep}")
-    
+
+
+def get_predictor(scene_rep):
+    """
+    Get the predictor for the given scene representation
+    """
+    if scene_rep == 'holistic':
+        return PredictorWrapper(HolisticTransformerPredictor())
+    elif scene_rep == 'oc':
+        return PredictorWrapper(ObjectCentricTransformerPredictor())
+    else:
+        raise ValueError(f"Invalid scene representation type: {scene_rep}")
+
+def show_logs():
+    """
+    Show the logs
+    """
+    logging.info(f"Training configuration:")
+    logging.info(f"  - Epochs: {config['training']['num_epochs']}")
+    logging.info(f"  - Batch size: {config['data']['batch_size']}")
+    logging.info(f"  - Learning rate: {config['training']['lr']}")
+    logging.info(f"  - Patch size: {config['data']['patch_size']}")
+    logging.info(f"  - Attention dimension: {config['vit_cfg']['attn_dim']}")
+    logging.info(f"  - Number of heads: {config['vit_cfg']['num_heads']}")
+    logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
+    logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
+    logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
+    # logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
+    logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
+    logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
+
+    return
     
 if __name__ == "__main__":
     
@@ -65,26 +105,15 @@ if __name__ == "__main__":
      
         # Create autoencoder model
         # mask_ratio = config['vit_cfg']['mask_ratio']
-        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'training')
-        decoder = get_decoder(scene_rep = args.scene_rep, mode= 'training')
+        encoder = get_encoder(scene_rep = args.scene_rep)
+        decoder = get_decoder(scene_rep = args.scene_rep)
         
         model = TransformerAutoEncoder(encoder, decoder)
         
         logging.info(f"NUMBER OF MODEL PARAMETERS: {count_model_params(model)}")
         print()
-        logging.info(f"Training configuration:")
-        logging.info(f"  - Epochs: {config['training']['num_epochs']}")
-        logging.info(f"  - Batch size: {config['data']['batch_size']}")
-        logging.info(f"  - Learning rate: {config['training']['lr']}")
-        logging.info(f"  - Patch size: {config['data']['patch_size']}")
-        logging.info(f"  - Attention dimension: {config['vit_cfg']['attn_dim']}")
-        logging.info(f"  - Number of heads: {config['vit_cfg']['num_heads']}")
-        logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
-        logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
-        logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
-        # logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
-        logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
-        logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
+        
+        show_logs()
         
         training_mode = "Autoencoder"
 
@@ -92,21 +121,26 @@ if __name__ == "__main__":
         trainer.train_model()
               
     elif args.predictor:
+        
+        """Predictor training mode"""
+        show_logs()
         logging.info(f"  - Predictor depth: {config['vit_cfg']['predictor_depth']}")
         logging.info(f"  - Number of predictions: {config['vit_cfg']['num_preds']}")
         logging.info(f"  - Predictor window size: {config['vit_cfg']['predictor_window_size']}")
-        setproctitle.setproctitle(f"{model_name}_predictor")
+        print()
         logging.info(f"PREDICTOR TRAINING MODE --> Scene Representation: {args.scene_rep}")
+        print()
+        setproctitle.setproctitle(f"{model_name}_predictor")
         
         if not args.ackpt:
             raise FileNotFoundError("Please specify the checkpoint to the pretrained AutoEncoder model")
             
-        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'predictor')
+        encoder = get_encoder(scene_rep = args.scene_rep)
+        decoder = get_decoder(scene_rep = args.scene_rep)
+        predictor = get_predictor(scene_rep = args.scene_rep)
         
         # Load AE weights
         encoder, decoder,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
-        
-        predictor = PredictorWrapper(TransformerPredictor())
         
         model = TransformerPredictor(encoder, decoder, predictor)
         
@@ -128,8 +162,8 @@ if __name__ == "__main__":
         # )
         
         #Train and save predictor checkpoints
-        # trainer.setup_model(model=model)
-        # trainer.train_model()
+        trainer.setup_model(model=model, mode=training_mode)
+        trainer.train_model()
         
 
     elif args.inference:
@@ -138,9 +172,9 @@ if __name__ == "__main__":
             raise FileNotFoundError("Please specify the checkpoint to both pretrained AutoEncoder and Predictor models")
         
 
-        encoder = get_encoder(scene_rep = args.scene_rep, mode= 'inference')          
-        decoder = get_decoder(scene_rep = args.scene_rep, mode= 'inference')
-        predictor = PredictorWrapper(TransformerPredictor())
+        encoder = get_encoder(scene_rep = args.scene_rep)          
+        decoder = get_decoder(scene_rep = args.scene_rep)
+        predictor = get_predictor(scene_rep = args.scene_rep)
          
         encoder,_,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
         decoder,_,_,_= load_model(model= decoder, savepath= args.ackpt) # TODO: also pass optimizer here
