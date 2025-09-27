@@ -5,10 +5,11 @@ import logging
 import setproctitle
 from model.ocvp import TransformerAutoEncoder, TransformerPredictor, OCVP
 # from model.encoder import MultiModalVitEncoder
-from model.decoder import VitDecoder
-from model.predictor import TransformerPredictor, PredictorWrapper
+from model.holistic_decoder import HolisticDecoder
+from model.holistic_predictor import TransformerPredictor, PredictorWrapper
 from model.holistic_encoder import HolisticEncoder
 from model.oc_encoder import ObjectCentricEncoder
+from model.oc_decoder import ObjectCentricDecoder
 from utils.utils import load_model, count_model_params
 from torch.utils.tensorboard import SummaryWriter
   
@@ -18,6 +19,14 @@ def get_encoder(scene_rep, mode ):
     
     elif scene_rep == 'oc':
         return ObjectCentricEncoder(mode= mode)
+    else:
+        raise ValueError(f"Invalid scene representation type: {scene_rep}")
+    
+def get_decoder(scene_rep, mode):
+    if scene_rep == 'holistic':
+        return HolisticDecoder(mode= mode)
+    elif scene_rep == 'oc':
+        return ObjectCentricDecoder(mode= mode)
     else:
         raise ValueError(f"Invalid scene representation type: {scene_rep}")
     
@@ -46,9 +55,10 @@ if __name__ == "__main__":
         
         '''Autoencoder training mode'''
         setproctitle.setproctitle(f"{model_name}")
+        print()
         logging.info(f"AUTOENCODER TRAINING MODE --> Scene Representation: {args.scene_rep}")
-        
-        if not args.ackpt:
+        print()
+        if not args.scene_rep:
             print()
             logging.warning("No specified scene representation type. By default will be considered as holistic.")
             print()
@@ -56,11 +66,12 @@ if __name__ == "__main__":
         # Create autoencoder model
         # mask_ratio = config['vit_cfg']['mask_ratio']
         encoder = get_encoder(scene_rep = args.scene_rep, mode= 'training')
-        decoder = VitDecoder(mode= 'training')
+        decoder = get_decoder(scene_rep = args.scene_rep, mode= 'training')
         
         model = TransformerAutoEncoder(encoder, decoder)
         
         logging.info(f"NUMBER OF MODEL PARAMETERS: {count_model_params(model)}")
+        print()
         logging.info(f"Training configuration:")
         logging.info(f"  - Epochs: {config['training']['num_epochs']}")
         logging.info(f"  - Batch size: {config['data']['batch_size']}")
@@ -97,9 +108,7 @@ if __name__ == "__main__":
         
         predictor = PredictorWrapper(TransformerPredictor())
         
-        model = TransformerPredictor(encoder, predictor)
-        model.encoder.requires_grad_(False)
-        model.decoder.requires_grad_(False)
+        model = TransformerPredictor(encoder, decoder, predictor)
         
         training_mode = "Predictor"
         
@@ -130,7 +139,7 @@ if __name__ == "__main__":
         
 
         encoder = get_encoder(scene_rep = args.scene_rep, mode= 'inference')          
-        decoder = VitDecoder(mode='inference')
+        decoder = get_decoder(scene_rep = args.scene_rep, mode= 'inference')
         predictor = PredictorWrapper(TransformerPredictor())
          
         encoder,_,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
