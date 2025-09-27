@@ -13,14 +13,14 @@ class ObjectCentricTransformerPredictor(baseTransformer):
 
         Args:
         -----
-        encoder_history: torch Tensor
+        encoder_features: torch Tensor
             Input embeddings from the previous time steps. Shape is (B, num_preds, num_objects, D) e.g., [B, 5, 11, 512]
 
         Returns:
         --------
         output: torch Tensor
             Predictor embeddings. Shape is (B, num_preds, num_objects, D). Returns exactly the same shape as the input. 
-            In Wrapping Module, we only keep the last time-step prediction, i.e., (B, -1, num_objects, D).
+            In Wrapping Module, we only keep the last time-step prediction, i.e., (B, -1, num_objects, D). e.g., [B, -1, 11, 512]
     """
     
     def __init__(self):
@@ -54,13 +54,13 @@ class ObjectCentricTransformerPredictor(baseTransformer):
 
         Args:
         -----
-        encoder_history: torch Tensor
-            Input embeddings from encoder for the whole sequence. Shape is (B, seq_len, num_patch_tokens, embed_dim)
+        encoder_features: torch Tensor
+            Input embeddings from encoder for the whole sequence. Shape is (B, num_preds, num_objects, embed_dim)
 
         Returns:
         --------
         output: torch Tensor
-            Predicted embeddings. Shape is (B, seq_len_keep, num_patch_tokens, predictor_embed_dim)
+            Predicted embeddings. Shape is (B, num_preds, num_objects, predictor_embed_dim)
         """
         B, num_preds, num_objects, D = encoder_history.shape   
 
