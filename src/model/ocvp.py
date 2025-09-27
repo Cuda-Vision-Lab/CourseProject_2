@@ -36,10 +36,6 @@ class TransformerPredictor(nn.Module):
         self.decoder = decoder
         self.predictor = predictor 
         
-        # Freeze encoder and decoder for training the predictor
-        self.encoder.requires_grad_(False)
-        self.decoder.requires_grad_(False)
-        
         return
     
     def forward(self, images, masks=None, bboxes=None):

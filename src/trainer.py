@@ -65,7 +65,6 @@ def show_logs():
     logging.info(f"  - MLP size: {config['vit_cfg']['mlp_size']}")
     logging.info(f"  - Encoder depth: {config['vit_cfg']['encoder_depth']}")
     logging.info(f"  - Decoder depth: {config['vit_cfg']['decoder_depth']}")
-    # logging.info(f"  - Mask ratio: {config['vit_cfg']['mask_ratio']}")
     logging.info(f"  - Use masks: {config['vit_cfg']['use_masks']}")
     logging.info(f"  - Use bboxes: {config['vit_cfg']['use_bboxes']}")
 
@@ -138,28 +137,13 @@ if __name__ == "__main__":
         encoder = get_encoder(scene_rep = args.scene_rep)
         decoder = get_decoder(scene_rep = args.scene_rep)
         predictor = get_predictor(scene_rep = args.scene_rep)
-        
-        # Load AE weights
-        encoder, decoder,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
-        
+              
         model = TransformerPredictor(encoder, decoder, predictor)
         
+        # Load AE weights, freeze encoder and decoder
+        model = load_model(model, mode="predictor_training", savepath= args.ackpt) 
+
         training_mode = "Predictor"
-        
-        # Load AE weights
-        # ae_checkpoint = torch.load("ae_checkpoint.pth", map_location=device)
-        # model_full.encoder.load_state_dict(ae_checkpoint['encoder_state_dict'])
-        # model_full.decoder.load_state_dict(ae_checkpoint['decoder_state_dict'])
-
-        # # Freeze encoder and decoder
-        # model_full.encoder.requires_grad_(False)
-        # model_full.decoder.requires_grad_(False)
-
-        # # Training setup for predictor
-        # optimizer = torch.optim.Adam(
-        #     filter(lambda p: p.requires_grad, model_full.parameters()),  # Only predictor params
-        #     lr=0.001
-        # )
         
         #Train and save predictor checkpoints
         trainer.setup_model(model=model, mode=training_mode)
@@ -171,16 +155,13 @@ if __name__ == "__main__":
         if (not args.ackpt) or (not args.pckpt):
             raise FileNotFoundError("Please specify the checkpoint to both pretrained AutoEncoder and Predictor models")
         
-
         encoder = get_encoder(scene_rep = args.scene_rep)          
         decoder = get_decoder(scene_rep = args.scene_rep)
         predictor = get_predictor(scene_rep = args.scene_rep)
-         
-        encoder,_,_,_= load_model(model= encoder, savepath= args.ackpt) # TODO: also pass optimizer here
-        decoder,_,_,_= load_model(model= decoder, savepath= args.ackpt) # TODO: also pass optimizer here
-        predictor,_,_,_= load_model(model= predictor, savepath= args.pckpt) # TODO: also pass optimizer here
         
         model = OCVP(encoder, decoder, predictor)
+        
+        model = load_model(model, mode="inference", savepath= args.ackpt) 
         
         # do inference and save results somewhere. 
         # some inference.py that takes the above models and do the inference
