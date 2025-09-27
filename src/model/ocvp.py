@@ -2,23 +2,21 @@ from CONFIG import config
 import torch.nn as nn
 
 class TransformerAutoEncoder(nn.Module):
-    
+    """
+    Transformer Autoencoder module for both holistic and object centric scene representations
+    """
     def __init__(self, encoder, decoder):
-        
-        # self.cfg = config
-        # self.mode = mode
+
         super().__init__()
         
         self.encoder = encoder
-        self.decoder = decoder        
+        self.decoder = decoder       
+
+        return
         
     def forward(self, images, masks=None, bboxes=None):
         
         encoded_features = self.encoder(images, masks, bboxes)
-        
-        # target images are patchified in the decoder
-        
-        # Decode (only for image modality)
         
         recons, loss = self.decoder(
                                     encoded_features, 
@@ -27,20 +25,26 @@ class TransformerAutoEncoder(nn.Module):
         return recons, loss
     
 class TransformerPredictor(nn.Module):
-    
-    def __init__(self, encoder, predictor):
+    """
+    Transformer Predictor module for both holistic and object centric scene representations
+    """
+    def __init__(self, encoder, decoder, predictor):
         
-        # self.cfg = config
-        # self.mode = mode
         super().__init__()
         
-        self.encoder = encoder()
-        self.predictor = predictor        
-        ## mask ratio = 0.0
+        self.encoder = encoder
+        self.decoder = decoder
+        self.predictor = predictor 
         
+        # Freeze encoder and decoder for training the predictor
+        self.encoder.requires_grad_(False)
+        self.decoder.requires_grad_(False)
+        
+        return
+    
     def forward(self, images, masks=None, bboxes=None):
         
-        encoded_features, all_masks, all_ids_restore = self.encoder(images, masks, bboxes)
+        encoded_features = self.encoder(images, masks, bboxes)
     
         preds, loss = self.predictor(encoded_features) # predictor should return loss in the training mode
     
@@ -49,27 +53,26 @@ class TransformerPredictor(nn.Module):
     
     
 class OCVP(nn.Module):
-    
+    """
+    OCVP module for both holistic and object centric scene representations
+    """
     def __init__(self, encoder, decoder, predictor):
         
         super().__init__()
         
-        self.encoder = encoder(mask_ratio = 0.0)
+        self.encoder = encoder
         self.decoder = decoder
         self.predictor = predictor
         
         
     def forward(self, images, masks=None, bboxes=None):
         
-        encoded_features, all_masks, all_ids_restore = self.encoder(images, masks, bboxes)
+        encoded_features = self.encoder(images, masks, bboxes)
         
-        prediced_features = self.predictor(encoded_features)
-        
-        # Decode (only for image modality for now)
-        recons, loss = self.decoder(
+        prediced_features, _ = self.predictor(encoded_features)
+
+        recons, _ = self.decoder(
                                     prediced_features, 
-                                    # all_masks['image'], 
-                                    # all_ids_restore['image'], 
-                                    # target=images
+                                    target=None
                                     )
-        return recons, loss
+        return recons
