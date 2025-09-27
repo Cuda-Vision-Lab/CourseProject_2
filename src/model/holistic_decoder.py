@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from base.baseTransformer import baseTransformer
 from CONFIG import config
 
-class VitDecoder(baseTransformer):
+class HolisticDecoder(baseTransformer):
     """
     Vision Transformer Decoder for multi-modal reconstruction task.
     Reconstructs images, masks, and bounding boxes from encoded features.

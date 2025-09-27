@@ -32,7 +32,7 @@ class HolisticEncoder(baseTransformer):
         super().__init__(config=config)
         
         # Projection to transformer token dimension
-        self.patch_projection = self.get_projection('encoder')
+        self.patch_projection = self.get_projection('holistic_encoder')
         
         # Positional encoding
         self.encoder_pos_embed = self.get_positional_encoder(self.encoder_embed_dim)
@@ -53,19 +53,24 @@ class HolisticEncoder(baseTransformer):
         Forward pass
         """
         B, T = images.shape[:2]  
-        
+        print(f"Input images shape: {images.shape}")
+
         # Breaking image into patches
         image_patches = self.patchifier(images)
+        print(f"Image patches shape: {image_patches.shape}")
         
         # Projection to transformer token dimension
         image_tokens = self.patch_projection(image_patches)
+        print(f"Image tokens shape after projection: {image_tokens.shape}")
         
         # Adding positional encoding
         image_tokens = self.encoder_pos_embed(image_tokens)
+        print(f"Image tokens shape after positional encoding: {image_tokens.shape}")
 
         # if self.mode == 'training':
 
         encoded_features = self.encoder_blocks(image_tokens)
+        print(f"Encoded features shape after transformer blocks: {encoded_features.shape}")
         encoded_features = self.encoder_norm(encoded_features)
-        
+        print(f"Encoded features shape after layer norm: {encoded_features.shape}")
         return encoded_features
