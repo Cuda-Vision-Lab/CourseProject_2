@@ -112,12 +112,19 @@ def load_model(model, mode, savepath):
     
     checkpoint = torch.load(savepath, map_location="cpu", weights_only=False)
     
-    if mode == "Autoencoder":
+    if mode == "predictor_training":
         model.encoder.load_state_dict(checkpoint['encoder_state_dict'])
         model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
-    elif mode == "Predictor":
+        
+        # Freeze encoder and decoder for training the predictor
+        model.encoder.requires_grad_(False)
+        model.decoder.requires_grad_(False)
+
+    elif mode == "inference":
+        model.encoder.load_state_dict(checkpoint['encoder_state_dict'])
+        model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
         model.predictor.load_state_dict(checkpoint['predictor_state_dict'])
-    
+ 
     return model
 
 
