@@ -30,7 +30,7 @@ class PredictorWrapper(nn.Module):
         """
         Module initializer
         """
-        super().__init__(config=config)
+        super().__init__()
         
         self.predictor = predictor
         self.num_preds = config['vit_cfg']['num_preds']
@@ -71,11 +71,14 @@ class PredictorWrapper(nn.Module):
             cur_pred = self.predictor(predictor_input)[:, -1]# (B, num_objects, D) -- only last prediction
             
             # Compute loss iin each time step - CHECK!! Is this correct?
+            print(f"target shape: {target[:, t].shape == cur_pred.shape}")
             loss = self.forward_loss(target[:, t], cur_pred) 
             losses.append(loss)
-            
+            print(f"cur_pred shape: {cur_pred.shape}")
+            print(f"target shape: {target.shape}")
+            print(f"predictor_input shape: {predictor_input.shape}")
             # Autoregressive: feed back last prediction
-            predictor_input = torch.cat([predictor_input, cur_pred], dim=1)  # (B, num_frames+1, num_objects, D)
+            predictor_input = torch.cat([predictor_input, cur_pred.unsqueeze(1)], dim=1)  # (B, num_frames+1, num_objects, D)
             predictor_input = self._update_buffer_size(predictor_input)  # Shift window size (B, num_frames, num_objects, D)
             pred_embeds.append(cur_pred) 
             
