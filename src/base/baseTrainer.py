@@ -59,6 +59,7 @@ class baseTrainer:
     def setup_model(self, model, mode):
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print()
         logging.info(f"Using device: {self.device}")
         
         set_random_seed()
@@ -182,7 +183,7 @@ class baseTrainer:
         logging.info(f"Saving the config ...")
         save_config(self.cfg, self.config_path , self.exp_name)
         logging.info(f"Config Saved !")   
-        
+        print()
         logging.info(f"Starting {self.training_mode} Training ...")
         
         # Initialize best validation loss for tracking

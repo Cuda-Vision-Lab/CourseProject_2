@@ -35,6 +35,9 @@ class baseTransformer(nn.Module, ABC):
         self.predictor_embed_dim = config['vit_cfg']['predictor_embed_dim']
         self.residual = config['vit_cfg']['residual']
         
+        self.image_height = config['data']['image_height']
+        self.image_width = config['data']['image_width']
+        
         self.encoder_depth = config['vit_cfg']['encoder_depth']
         self.decoder_depth = config['vit_cfg']['decoder_depth']
         self.predictor_depth = config['vit_cfg']['predictor_depth']
@@ -47,14 +50,27 @@ class baseTransformer(nn.Module, ABC):
         
         '''Prediction heads for different modalities'''
         
-        if module_name == 'encoder':
+        if module_name == 'holistic_encoder':
             return nn.Sequential(   
                                  nn.LayerNorm(self.patch_size * self.patch_size * self.in_chans),
                                  nn.Linear(self.patch_size * self.patch_size * self.in_chans, self.encoder_embed_dim) # embed_dim = token embedding
                                 )
-
+        elif module_name == 'oc_encoder':
+            input_dim = self.image_height * self.image_width * self.in_chans
+            return nn.Sequential( nn.Linear(input_dim, input_dim // 8),  # 49,152 → 6,144
+                                 nn.GELU(),
+                                 nn.Dropout(0.1),
+                                 nn.Linear(input_dim // 8, input_dim // 16),  # 6,144 → 3,072  
+                                 nn.GELU(),
+                                 nn.Dropout(0.1),
+                                 nn.Linear(input_dim // 16, self.encoder_embed_dim) ) # 3,072 → 5 )
+            # return nn.Sequential(     
+            #     nn.LayerNorm(input_dim),
+            #     nn.Linear(input_dim, self.encoder_embed_dim)
+            #             )
+        
         elif module_name == 'decoder':
-            return nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True)
+            return nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True) # decoder input always encoder embedding size, predictor should also handle this
         
         elif module_name == 'predictor': # input and output projection
             return nn.Linear(self.encoder_embed_dim, self.predictor_embed_dim, bias=True),\
