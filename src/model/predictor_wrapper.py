@@ -43,13 +43,13 @@ class PredictorWrapper(nn.Module):
 
         Args:
         -----
-        encoder_features: torch Tensor: Shape is [B, T, num_objects, D] e.g., [B, 24, 11, 512]
+        encoder_features: torch Tensor: Shape is [B, T, num_objects/tokens, D] e.g., oc:[B, 24, 11, 512], holistic: [B,T, 64, 512]
         predictor receives object-frame embeddings for frames in the sequence
 
         Returns:
         --------
         pred_embeds: torch Tensor
-            Predicted subsequent embeddings. Shape is (B, num_preds, num_objects, D) e.g., [B, 5, 11, 512]
+            Predicted subsequent embeddings. Shape is (B, num_preds, num_objects/tokens, D) e.g., oc:[B, 5, 11, 512], holistic: [B, 5, 64, 512]
         
         """
         B, T, num_objects, D = encoder_features.shape
