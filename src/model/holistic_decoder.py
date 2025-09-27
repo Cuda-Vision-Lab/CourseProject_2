@@ -1,24 +1,26 @@
-from .model_utils import PositionalEncoding, Patchifier
-import numpy as np
+"""
+Holistic Scene Representation Decoder
+"""
+
 import torch.nn as nn
-import torch
-import torch.nn.functional as F
 from base.baseTransformer import baseTransformer
 from CONFIG import config
 
 class HolisticDecoder(baseTransformer):
     """
-    Vision Transformer Decoder for multi-modal reconstruction task.
-    Reconstructs images, masks, and bounding boxes from encoded features.
+    Vision Transformer Decoder for holistic scene representation reconstruction task.
+
+    Args:
+        encoded_features (torch.Tensor): Encoded features from the encoder. Shape: [B, T, N, embed_dim]
+
+    Returns:
+        torch.Tensor: Reconstructed images. Shape: [B, T, C, H, W]
     """
-        
-    def __init__(self , mode):
+    def __init__(self):
 
         
         super().__init__(config=config)
         
-        self.mode = mode
-
         self.decoder_projection = self.get_projection('decoder')
         self.decoder_pos_embed = self.get_positional_encoder(self.decoder_embed_dim)
         self.decoder_blocks = self.get_transformer_blocks(self.decoder_embed_dim, self.decoder_depth)
@@ -51,9 +53,7 @@ class HolisticDecoder(baseTransformer):
         # [B, T, N, D] -> [B, T, grid_size, grid_size, C, patch_size, patch_size]
         x = x.reshape(B, T, grid_size, grid_size, C, self.patch_size, self.patch_size)
         
-        # Reverse of patchify permute)
-        # Patchify does: (0, 1, 3, 5, 2, 4, 6) -> (B, T, num_patch_H, num_patch_W, C, patch_size, patch_size)
-        # So reverse should be: (0, 1, 4, 2, 5, 3, 6) -> (B, T, C, num_patch_H, patch_size, num_patch_W, patch_size)
+        # Reverse of patchify permute
         x = x.permute(0, 1, 4, 2, 5, 3, 6)
         
         # Reshape back to full image
@@ -63,7 +63,7 @@ class HolisticDecoder(baseTransformer):
     
     def patchify(self, imgs):
         """
-        Convert images to patches (same as encoder).
+        Convert target images to patches (same as encoder).
         
         Args:
             imgs: [B, T, C, H, W]
@@ -75,7 +75,7 @@ class HolisticDecoder(baseTransformer):
     
     def forward_loss(self, target_patches, pred_patches):
         """
-        Compute reconstruction loss for different modalities.
+        Compute reconstruction loss 
         
         Args:
             targets: [B, T, N, patch_dim] 
@@ -90,12 +90,10 @@ class HolisticDecoder(baseTransformer):
     def forward(self, encoded_features, target=None):
         """
         Forward pass through decoder.     
-        Masked token vectors for the missing patches
-    Encoder output vectors for the known patches
         
         Args:
             encoded_features: [B, T, N, embed_dim] - encoded features from encoder
-            target: target tokens for loss computation
+            target: target images for loss computation
         
         Returns:
             predictions: Reconstructed images
@@ -120,13 +118,14 @@ class HolisticDecoder(baseTransformer):
         # Project predictions 
         pred_patches = self.decoder_pred_image(x)  # [B, T, N, ps*ps*C]
         
-        # Compute loss/ only in training mode
+        # Compute loss
         loss = None
-        if self.mode == 'training':
-            if target is not None:   
-                target_patches = self.patchifier(target)
-                loss = self.forward_loss(target_patches, pred_patches)
-        
+        if target is not None: 
+            
+            # Convert target images to patches
+            target_patches = self.patchifier(target)
+            loss = self.forward_loss(target_patches, pred_patches)
+    
         # Reconstruct full images from predicted patches
         recons = self.unpatchify(pred_patches)
             

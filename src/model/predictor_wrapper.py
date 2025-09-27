@@ -1,16 +1,15 @@
-import numpy as np
+"""
+Wrapper module that autoregressively applies any predictor module on a sequence of data
+"""
+
 import torch.nn as nn
-import torch
 import torch.nn.functional as F
-from .model_utils import MaskEncoder, BBoxEncoder, PositionalEncoding, TransformerBlock
-from base.baseTransformer import baseTransformer
+import torch
 from CONFIG import config
 import random
 
 class PredictorWrapper(nn.Module):
     """
-    Wrapper module that autoregressively applies any predictor module on a sequence of data
-    
     Args:
     -----
     predictor: nn.Module
@@ -19,7 +18,6 @@ class PredictorWrapper(nn.Module):
     
     '''
     At each prediction step, the wrapper:
-
     Concatenates the newly predicted embedding to the current input buffer.
     Trims the buffer to the required size (oldest frames dropped if necessary).
     Feeds this buffer into the transformer to generate the next prediction.
@@ -35,9 +33,7 @@ class PredictorWrapper(nn.Module):
         self.predictor = predictor
         self.num_preds = config['vit_cfg']['num_preds']
         self.predictor_window_size = config['vit_cfg']['predictor_window_size']
-        # self.mode = mode
         
-    
     def forward(self, encoder_features):
         """
 
@@ -71,12 +67,9 @@ class PredictorWrapper(nn.Module):
             cur_pred = self.predictor(predictor_input)[:, -1]# (B, num_objects, D) -- only last prediction
             
             # Compute loss iin each time step - CHECK!! Is this correct?
-            print(f"target shape: {target[:, t].shape == cur_pred.shape}")
             loss = self.forward_loss(target[:, t], cur_pred) 
             losses.append(loss)
-            print(f"cur_pred shape: {cur_pred.shape}")
-            print(f"target shape: {target.shape}")
-            print(f"predictor_input shape: {predictor_input.shape}")
+            
             # Autoregressive: feed back last prediction
             predictor_input = torch.cat([predictor_input, cur_pred.unsqueeze(1)], dim=1)  # (B, num_frames+1, num_objects, D)
             predictor_input = self._update_buffer_size(predictor_input)  # Shift window size (B, num_frames, num_objects, D)
@@ -96,8 +89,8 @@ class PredictorWrapper(nn.Module):
 
     def _update_buffer_size(self, predictor_inputs):
         """
-        Updating the inputs of a transformer model given the 'buffer_size'.
-        We keep a moving window over the input tokens, dropping the oldest slots if the buffer
+        Updating the inputs of a transformer model given the 'window_size'.
+        We keep a moving window over the input tokens, dropping the oldest tokens if the window
         size is exceeded.
         """
         num_inputs = predictor_inputs.shape[1]

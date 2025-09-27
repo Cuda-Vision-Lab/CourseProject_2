@@ -1,7 +1,6 @@
-
-'''
+"""
 Transformer Predictor for Object Centric Scene Representation
-'''
+"""
 
 from base.baseTransformer import baseTransformer
 from CONFIG import config

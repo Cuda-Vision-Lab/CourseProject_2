@@ -1,23 +1,18 @@
-from .model_utils import PositionalEncoding, Patchifier
-import numpy as np
+"""
+Object Centric Scene Representation Decoder
+"""
+
 import torch.nn as nn
 import torch
-import torch.nn.functional as F
 from base.baseTransformer import baseTransformer
 from CONFIG import config
 
 class ObjectCentricDecoder(baseTransformer):
-    """
-    Vision Transformer Decoder for multi-modal reconstruction task.
-    Reconstructs images, masks, and bounding boxes from encoded features.
-    """
         
-    def __init__(self , mode):
+    def __init__(self):
 
         
         super().__init__(config=config)
-        
-        self.mode = mode
 
         self.decoder_projection = self.get_projection('decoder')
         self.decoder_pos_embed = self.get_positional_encoder(self.decoder_embed_dim)
@@ -25,22 +20,7 @@ class ObjectCentricDecoder(baseTransformer):
         self.decoder_norm = self.get_ln(self.decoder_embed_dim)
 
         self.decoder_pred_image = nn.Linear(self.decoder_embed_dim, self.image_height * self.image_width * self.out_chans, bias=True)
-        # output_dim = self.image_height * self.image_width * self.out_chans
-        # in_dim = self.decoder_embed_dim
 
-        # self.decoder_pred_image = nn.Sequential(
-        #     nn.Linear(in_dim, 1024),
-        #     nn.GELU(),
-        #     nn.Dropout(0.1),
-        #     nn.Linear(1024, 4096),
-        #     nn.GELU(),
-        #     nn.Dropout(0.1),
-        #     nn.Linear(4096, 16384),
-        #     nn.GELU(),
-        #     nn.Dropout(0.1),
-        #     nn.Linear(16384, output_dim)  # final flat vector
-        #     )
-        
         # Initialize weights
         self.initialize_weights()
         
@@ -92,38 +72,31 @@ class ObjectCentricDecoder(baseTransformer):
             loss: Loss value
         """
         B, T, Num_objects, D = encoded_features.shape       
-        # print(f"encoded_features shape: {encoded_features.shape}")
 
         # Project to decoder dimension
         x = self.decoder_projection(encoded_features)  # [B, T, Num_objects, decoder_embed_dim]
-        # print(f"After decoder_projection, x shape: {x.shape}")
                 
         # Add positional encoding
         x = self.decoder_pos_embed(x)
-        # print(f"After decoder_pos_embed, x shape: {x.shape}")
         
         # Apply decoder blocks
         for i, block in enumerate(self.decoder_blocks):
             x = block(x)
-        # print(f"After decoder block , x shape: {x.shape}")
         
         # Final layer norm 
         x = self.decoder_norm(x)
-        # print(f"After decoder_norm, x shape: {x.shape}")
         
         # Project to frame predictions
         pred_frames = self.decoder_pred_image(x)  # [B, T, Num_objects, H * W * out_chans]
-        # print(f"pred_frames shape: {pred_frames.shape}")
         
         pred_frames = pred_frames.view(B, T, Num_objects, self.out_chans, self.image_height, self.image_width) # [B, T, Num_objects, C, H, W ]
-        # print(f"pred_frames shape after view: {pred_frames.shape}")
         
         # Combine objects to reconstruct scene
         scene_recons = self.combine_objects_to_scene(pred_frames)  # [B, T, C, H, W]
-        # print(f"scene_recons shape: {scene_recons.shape}")
         
-        # print(f"target shape: {target.shape}")
         # Calculate the loss
-        loss = self.forward_loss(target, scene_recons)
-        # print(f"loss value: {loss.item() }")
+        loss = None
+        if target is not None:
+            loss = self.forward_loss(target, scene_recons)
+            
         return scene_recons, loss

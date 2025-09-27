@@ -1,9 +1,9 @@
-import numpy as np
+"""
+Base Transformer class for all transformer-based architectures. All other transformer-based architectures should inherit from this class.
+"""
+
 import torch.nn as nn
-import torch
-import torch.nn.functional as F
 from model.model_utils import TransformerBlock, Patchifier, PositionalEncoding
-from CONFIG import config
 from abc import ABC, abstractmethod 
 from utils.logger import log_function
 
@@ -14,19 +14,19 @@ class baseTransformer(nn.Module, ABC):
     '''
     
     def __init__(self, config) -> None:
+        """
+        Initialize the base transformer class. Global configurations are loaded here.
+        """
         super().__init__()
-        # self.cfg = config
+        
         self.patch_size = config['data']['patch_size']
         self.max_objects =  config['data']['max_objects']
         self.encoder_embed_dim = config['vit_cfg']['encoder_embed_dim'] # encoder output
-        # self.predictor_embed_dim = self.encoder_embed_dim # or five times this?! --> no , the input to predictor is five times this. This is the predictor output
         self.decoder_embed_dim = config['vit_cfg']['decoder_embed_dim'] # decoder input
         self.max_len = config['vit_cfg']['max_len']
-        # self.norm_pix_loss = config['vit_cfg']['norm_pix_loss']
         self.out_chans = self.in_chans =  config['vit_cfg']['in_out_channels']
         self.use_masks =  config['vit_cfg']['use_masks']
         self.use_bboxes = config['vit_cfg']['use_bboxes']
-        # self.mask_ratio = config['vit_cfg']['mask_ratio']
         self.attn_dim = config['vit_cfg']['attn_dim']
         self.num_heads = config['vit_cfg']['num_heads']
         self.mlp_size = config['vit_cfg']['mlp_size']
@@ -34,10 +34,8 @@ class baseTransformer(nn.Module, ABC):
         self.predictor_window_size = config['vit_cfg']['predictor_window_size']
         self.predictor_embed_dim = config['vit_cfg']['predictor_embed_dim']
         self.residual = config['vit_cfg']['residual']
-        
         self.image_height = config['data']['image_height']
-        self.image_width = config['data']['image_width']
-        
+        self.image_width = config['data']['image_width']     
         self.encoder_depth = config['vit_cfg']['encoder_depth']
         self.decoder_depth = config['vit_cfg']['decoder_depth']
         self.predictor_depth = config['vit_cfg']['predictor_depth']
@@ -48,7 +46,16 @@ class baseTransformer(nn.Module, ABC):
     
     def get_projection(self, module_name):
         
-        '''Prediction heads for different modalities'''
+        """
+        Projection heads for different modalities
+        
+        Args:
+            module_name: str
+                The name of the module to get the projection for
+                
+        Returns:
+            nn.Sequential: The projection for the given module
+        """
         
         if module_name == 'holistic_encoder':
             return nn.Sequential(   
@@ -56,6 +63,7 @@ class baseTransformer(nn.Module, ABC):
                                  nn.Linear(self.patch_size * self.patch_size * self.in_chans, self.encoder_embed_dim) # embed_dim = token embedding
                                 )
         elif module_name == 'oc_encoder':
+            # Sequential projection for object centric encoder to reduce the dimension of the input images
             input_dim = self.image_height * self.image_width * self.in_chans
             return nn.Sequential( nn.Linear(input_dim, input_dim // 8),  # 49,152 → 6,144
                                  nn.GELU(),
@@ -81,12 +89,16 @@ class baseTransformer(nn.Module, ABC):
     
     def get_positional_encoder (self, embed_dim):
         '''
-        Spatial and temporal Positional encoding for the transformer blocks
+        Positional encoding for the transformer blocks
         '''
         return PositionalEncoding(d_model = embed_dim)
         
 
     def get_transformer_blocks (self, embed_dim, depth):
+        
+        """
+        Get the transformer blocks
+        """
         
         transformer_blocks = [
             TransformerBlock(    # cascade of transformer blocks

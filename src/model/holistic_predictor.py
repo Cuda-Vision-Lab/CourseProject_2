@@ -48,7 +48,6 @@ class HolisticTransformerPredictor(baseTransformer):
         return
 
 
-
     def forward(self, encoder_history):
         """
         Forward pass through the transformer predictor module

@@ -1,22 +1,19 @@
+"""
+Base Trainer for Autoencoder and Predictor models. Every other trainer should inherit from this class.
+"""
+
 import torch
 import os
 from datalib import load_data, build_data_loader
 import numpy as np
 from tqdm import tqdm
-from torchvision.utils import save_image, make_grid
-import torchvision
 import logging
-from utils.logger import log_function
-from utils.utils import create_directory, set_random_seed, save_model, save_config, plot_sequence_comparison
+from utils.utils import create_directory, set_random_seed, save_model, save_config
 from model.model_utils import get_scheduler
-# from torch.utils.tensorboard import SummaryWriter
 from utils.utils import TensorboardWriter
 
 
-
 class baseTrainer:
-    
-    '''intended to be the base trainer for both Autoencoder and predictor modules'''
     
     def __init__(self, config) -> None:
         

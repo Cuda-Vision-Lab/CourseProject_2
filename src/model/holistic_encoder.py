@@ -1,32 +1,25 @@
-import shutil
-import os
-from tqdm import tqdm
-import numpy as np
-import torch.nn as nn
-import torch
-import torch.nn.functional as F
-import torchvision
-from torchvision import datasets, transforms
-from torch.utils.data import Dataset, DataLoader
-import random
-import re
-# from transformations import *
-from .model_utils import MaskEncoder, BBoxEncoder
+"""
+Holistic scene Representation Encoder
+"""
+
 from base.baseTransformer import baseTransformer
 from CONFIG import config
-from torch.utils.tensorboard import SummaryWriter
-import math
-
 
 class HolisticEncoder(baseTransformer):
     
     """ 
-    Vision Transformer for image reconstruction task
-    """
-    def __init__(self , mode):
+    Vision Transformer Encoder for holistic scene representation task
 
-        
-        self.mode = mode
+    Args:
+        images (torch.Tensor): Input images of shape [B, T, C, H, W].
+        masks (torch.Tensor, optional): Optional masks for input images.
+        bboxes (torch.Tensor, optional): Optional bounding boxes for input images.
+
+    Returns:
+        torch.Tensor: Encoded features of the input images. Shape is [B, T, N, embed_dim].
+    """
+    def __init__(self):
+
         # self.mask_ratio = mask_ratio
 
         super().__init__(config=config)
@@ -53,24 +46,20 @@ class HolisticEncoder(baseTransformer):
         Forward pass
         """
         B, T = images.shape[:2]  
-        print(f"Input images shape: {images.shape}")
 
         # Breaking image into patches
         image_patches = self.patchifier(images)
-        print(f"Image patches shape: {image_patches.shape}")
         
         # Projection to transformer token dimension
         image_tokens = self.patch_projection(image_patches)
-        print(f"Image tokens shape after projection: {image_tokens.shape}")
         
         # Adding positional encoding
         image_tokens = self.encoder_pos_embed(image_tokens)
-        print(f"Image tokens shape after positional encoding: {image_tokens.shape}")
 
-        # if self.mode == 'training':
-
+        # Feed through transformer blocks
         encoded_features = self.encoder_blocks(image_tokens)
-        print(f"Encoded features shape after transformer blocks: {encoded_features.shape}")
+
+        # Layer normalization
         encoded_features = self.encoder_norm(encoded_features)
-        print(f"Encoded features shape after layer norm: {encoded_features.shape}")
+        
         return encoded_features
