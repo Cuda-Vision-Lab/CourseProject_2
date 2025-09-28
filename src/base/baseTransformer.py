@@ -93,7 +93,7 @@ class baseTransformer(nn.Module, ABC):
                 nn.Dropout(0.1),
                 
                 # Final projection to embedding dimension
-                nn.Linear(intermediate_dim3, self.encoder_embed_dim),  # 3,072 → 768
+                nn.Linear(intermediate_dim3, self.encoder_embed_dim),  # 3,072 → 512
                 nn.LayerNorm(self.encoder_embed_dim),
             )
             return mlp_in

@@ -129,7 +129,7 @@ if __name__ == "__main__":
         print()
         logging.info(f"PREDICTOR TRAINING MODE --> Scene Representation: {args.scene_rep}")
         print()
-        setproctitle.setproctitle(f"{model_name}_predictor")
+        setproctitle.setproctitle(f"{model_name}")
         
         if not args.ackpt:
             raise FileNotFoundError("Please specify the checkpoint to the pretrained AutoEncoder model")

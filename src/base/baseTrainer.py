@@ -154,15 +154,16 @@ class baseTrainer:
             recons, loss = self.model(images, masks_data, bboxes_data)
             
             # Reconstruction image saving for visualization - optimized for tensorboard
-            if epoch % 5 == 0 and batch_idx == 0:  # Use first batch for consistency
-                
-                    # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
-                    B, T, C, H, W = recons.shape
-                    recons_vis = recons.view(B * T, C, H, W)[:8]
-                    images_vis = images.view(B * T, C, H, W)[:8]
+            if self.training_mode == "Autoencoder":
+                if epoch % 5 == 0 and batch_idx == 1:  # Use first batch for consistency
                     
-                    self.writer.plot_reconstruction_images(images_vis, recons_vis, epoch, self.tboard_logs_path, self.writer)
-                 
+                        # Reshape recons from [B, T, C, H, W] to [B*T, C, H, W] for visualization
+                        B, T, C, H, W = recons.shape
+                        recons_vis = recons.view(B * T, C, H, W)[:8]
+                        images_vis = images.view(B * T, C, H, W)[:8]
+                        
+                        self.writer.plot_reconstruction_images(images_vis, recons_vis, epoch, self.tboard_logs_path, self.writer)
+                    
             progress_bar.set_description(f"Epoch {epoch+1} batch {batch_idx}: valid loss {loss.item():.5f}. ")
 
             epoch_losses.append(loss.item())
