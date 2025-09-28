@@ -14,12 +14,12 @@ class ObjectCentricDecoder(baseTransformer):
         
         super().__init__(config=config)
 
-        self.decoder_projection = self.get_projection('decoder')
+        self.decoder_projection_in, self.decoder_projection_out = self.get_projection('oc_decoder')
         self.decoder_pos_embed = self.get_positional_encoder(self.decoder_embed_dim)
         self.decoder_blocks = self.get_transformer_blocks(self.decoder_embed_dim, self.decoder_depth)
         self.decoder_norm = self.get_ln(self.decoder_embed_dim)
 
-        self.decoder_pred_image = nn.Linear(self.decoder_embed_dim, self.image_height * self.image_width * self.out_chans, bias=True)
+        # self.decoder_pred_image = nn.Linear(self.decoder_embed_dim, self.image_height * self.image_width * self.out_chans, bias=True)
 
         # Initialize weights
         self.initialize_weights()
@@ -74,7 +74,7 @@ class ObjectCentricDecoder(baseTransformer):
         B, T, Num_objects, D = encoded_features.shape       
 
         # Project to decoder dimension
-        x = self.decoder_projection(encoded_features)  # [B, T, Num_objects, decoder_embed_dim]
+        x = self.decoder_projection_in(encoded_features)  # [B, T, Num_objects, decoder_embed_dim]
                 
         # Add positional encoding
         x = self.decoder_pos_embed(x)
@@ -87,7 +87,7 @@ class ObjectCentricDecoder(baseTransformer):
         x = self.decoder_norm(x)
         
         # Project to frame predictions
-        pred_frames = self.decoder_pred_image(x)  # [B, T, Num_objects, H * W * out_chans]
+        pred_frames = self.decoder_projection_out(x)  # [B, T, Num_objects, H * W * out_chans]
         
         pred_frames = pred_frames.view(B, T, Num_objects, self.out_chans, self.image_height, self.image_width) # [B, T, Num_objects, C, H, W ]
         
