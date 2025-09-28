@@ -116,54 +116,76 @@ def visualize_masked_image(img, mask, patch_size=32):
 
     plt.show()
 
+def plot_images_(orig_imgs, recons_imgs, num_images=40):
+    """
+    Plots a 10x8 grid alternating between original and reconstructed images.
+    Row 1: 8 originals, Row 2: 8 reconstructions, Row 3: 8 originals, etc.
+    """
+    # Move to CPU and clamp to [0,1]
+    orig_imgs = torch.clamp(orig_imgs.detach().cpu(), 0, 1)
+    recons_imgs = torch.clamp(recons_imgs.detach().cpu(), 0, 1)
 
-def show_image(image, title=''):
-    # image is [H, W, 3]
-    assert image.shape[2] == 3
-    plt.imshow(torch.clip((image * imagenet_std + imagenet_mean) * 255, 0, 255).int())
-    plt.title(title, fontsize=16)
-    plt.axis('off')
-    return
+    # Apply percentile normalization to both for consistent contrast
+    for imgs in [orig_imgs, recons_imgs]:
+        p1, p99 = torch.quantile(imgs, 0.01), torch.quantile(imgs, 0.99)
+        imgs[:] = torch.clamp((imgs - p1) / (p99 - p1 + 1e-8), 0, 1)
 
-def run_one_image(img, model):
-    x = torch.tensor(img)
+    # We need 40 images total (5 pairs of orig/recon rows, 8 images each)
+    n_rows, n_cols = 10, 8
+    needed_images = 40  # 5 rows of originals + 5 rows of reconstructions
+    orig_imgs = orig_imgs[:needed_images]
+    recons_imgs = recons_imgs[:needed_images]
 
-    # make it a batch-like
-    x = x.unsqueeze(dim=0)
-    x = torch.einsum('nhwc->nchw', x)
-
-    # run MAE
-    loss, y, mask = model(x.float(), mask_ratio=0.75)
-    y = model.unpatchify(y)
-    y = torch.einsum('nchw->nhwc', y).detach().cpu()
-
-    # visualize the mask
-    mask = mask.detach()
-    mask = mask.unsqueeze(-1).repeat(1, 1, model.patch_embed.patch_size[0]**2 *3)  # (N, H*W, p*p*3)
-    mask = model.unpatchify(mask)  # 1 is removing, 0 is keeping
-    mask = torch.einsum('nchw->nhwc', mask).detach().cpu()
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(2*n_cols, 2*n_rows))
     
-    x = torch.einsum('nchw->nhwc', x)
-
-    # masked image
-    im_masked = x * (1 - mask)
-
-    # MAE reconstruction pasted with visible patches
-    im_paste = x * (1 - mask) + y * mask
-
-    # make the plt figure larger
-    plt.rcParams['figure.figsize'] = [24, 24]
-
-    plt.subplot(1, 4, 1)
-    show_image(x[0], "original")
-
-    plt.subplot(1, 4, 2)
-    show_image(im_masked[0], "masked")
-
-    plt.subplot(1, 4, 3)
-    show_image(y[0], "reconstruction")
-
-    plt.subplot(1, 4, 4)
-    show_image(im_paste[0], "reconstruction + visible")
-
+    for row in range(n_rows):
+        for col in range(n_cols):
+            if row % 2 == 0:  # Even rows: originals
+                img_idx = (row // 2) * n_cols + col
+                if img_idx < len(orig_imgs):
+                    img = orig_imgs[img_idx]
+                    img = img.permute(1, 2, 0) if img.shape[0] == 3 else img
+                    axes[row, col].imshow(img.numpy())
+                    axes[row, col].set_title(f"Orig {col+1}")
+            else:  # Odd rows: reconstructions
+                img_idx = (row // 2) * n_cols + col
+                if img_idx < len(recons_imgs):
+                    img = recons_imgs[img_idx]
+                    img = img.permute(1, 2, 0) if img.shape[0] == 3 else img
+                    axes[row, col].imshow(img.numpy())
+                    axes[row, col].set_title(f"Recon {col+1}")
+            
+            axes[row, col].axis("off")
+    
+    plt.suptitle("Original V.S Reconstructed Images for Various Sequences", fontsize=18, fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
     plt.show()
+
+def plot_images_vs_recons(rgbs, recons, num_sequences=5, frames_per_sequence=8):
+    """Plot 5 random sequences, each showing 8 non-sequential frames (every 2nd frame)"""
+    batch_size = rgbs.shape[0]
+    random_indices = torch.randperm(batch_size)[:num_sequences]
+    
+    orig_imgs_list = []
+    recons_imgs_list = []
+    
+    for seq_idx, batch_idx in enumerate(random_indices):
+        # Select non-sequential frames: 0, 2, 4, 6, 8, 10, 12, 14 (every 2nd frame)
+        frame_indices = torch.arange(0, frames_per_sequence * 2, 2)  # [0, 2, 4, 6, 8, 10, 12, 14]
+        
+        # Make sure we don't exceed the sequence length
+        max_frames = rgbs.shape[1]  # Total frames in sequence
+        frame_indices = frame_indices[frame_indices < max_frames]
+        
+        # Select frames from this sequence
+        orig_imgs = rgbs[batch_idx, frame_indices]  # [selected_frames, C, H, W]
+        recons_imgs = recons[batch_idx, frame_indices]  # [selected_frames, C, H, W]
+        
+        orig_imgs_list.append(orig_imgs)
+        recons_imgs_list.append(recons_imgs)
+    
+    # Concatenate all images for plotting
+    all_orig_imgs = torch.cat(orig_imgs_list, dim=0)  # [total_selected_frames, C, H, W]
+    all_recons_imgs = torch.cat(recons_imgs_list, dim=0)
+    total_images = all_orig_imgs.shape[0]
+    plot_images_(all_orig_imgs, all_recons_imgs, num_images=total_images)
