@@ -1,5 +1,8 @@
 *.pyc
-src/experiments/*/tboard_logs/*
 .gitignore
 src/utils/wrappers.py
+src/model/Predictors.py
+venv
+src/experiments/01_OC_AE_XL/
+src/experiments/01_Holistic_Predictor_XL/
 src/experiments/*/checkpoints/*.pth
