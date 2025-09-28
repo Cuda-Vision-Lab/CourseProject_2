@@ -58,32 +58,83 @@ class baseTransformer(nn.Module, ABC):
         """
         
         if module_name == 'holistic_encoder':
-            return nn.Sequential(   
+            mlp_in = nn.Sequential(   
                                  nn.LayerNorm(self.patch_size * self.patch_size * self.in_chans),
                                  nn.Linear(self.patch_size * self.patch_size * self.in_chans, self.encoder_embed_dim) # embed_dim = token embedding
                                 )
+            return mlp_in
+        
         elif module_name == 'oc_encoder':
             # Sequential projection for object centric encoder to reduce the dimension of the input images
-            input_dim = self.image_height * self.image_width * self.in_chans
-            return nn.Sequential( nn.Linear(input_dim, input_dim // 8),  # 49,152 → 6,144
-                                 nn.GELU(),
-                                 nn.Dropout(0.1),
-                                 nn.Linear(input_dim // 8, input_dim // 16),  # 6,144 → 3,072  
-                                 nn.GELU(),
-                                 nn.Dropout(0.1),
-                                 nn.Linear(input_dim // 16, self.encoder_embed_dim) ) # 3,072 → 5 )
-            # return nn.Sequential(     
-            #     nn.LayerNorm(input_dim),
-            #     nn.Linear(input_dim, self.encoder_embed_dim)
-            #             )
-        
-        elif module_name == 'decoder':
-            return nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True) # decoder input always encoder embedding size, predictor should also handle this
-        
-        elif module_name == 'predictor': # input and output projection
-            return nn.Linear(self.encoder_embed_dim, self.predictor_embed_dim, bias=True),\
-                   nn.Linear(self.predictor_embed_dim, self.encoder_embed_dim, bias=True)  
+            
+            input_dim = self.image_height * self.image_width * self.in_chans  # 49,152
 
+            intermediate_dim1 = input_dim // 4   # 49,152 → 12,288
+            intermediate_dim2 = input_dim // 8   # 49,152 → 6,144
+            intermediate_dim3 = input_dim // 16  # 49,152 → 3,072
+            
+            mlp_in = nn.Sequential(
+                # First compression stage
+                nn.Linear(input_dim, intermediate_dim1),  # 49,152 → 12,288
+                nn.LayerNorm(intermediate_dim1),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                # Second compression stage  
+                nn.Linear(intermediate_dim1, intermediate_dim2),  # 12,288 → 6,144
+                nn.LayerNorm(intermediate_dim2),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                # Third compression stage
+                nn.Linear(intermediate_dim2, intermediate_dim3),  # 6,144 → 3,072
+                nn.LayerNorm(intermediate_dim3),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                # Final projection to embedding dimension
+                nn.Linear(intermediate_dim3, self.encoder_embed_dim),  # 3,072 → 768
+                nn.LayerNorm(self.encoder_embed_dim),
+            )
+            return mlp_in
+                
+        
+        elif module_name == 'holistic_decoder':
+            
+            # Input and output projection for decoder. Decoder input always encoder embedding size, predictor should also handle this
+            
+            mlp_in = nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True)
+            mlp_out = nn.Linear(self.decoder_embed_dim, self.patch_size**2 * self.out_chans, bias=True) 
+            return mlp_in, mlp_out   
+        
+        elif module_name == 'oc_decoder':
+            
+            # MLP for decoder input and output reconstruction head with upsampling
+            
+            mlp_in = nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True)
+            mlp_out = nn.Sequential(
+                                    nn.Linear(self.decoder_embed_dim, self.decoder_embed_dim * 2),
+                                    nn.LayerNorm(self.decoder_embed_dim * 2),
+                                    nn.GELU(),
+                                    nn.Dropout(0.1),
+                                    
+                                    nn.Linear(self.decoder_embed_dim * 2, self.decoder_embed_dim * 4),
+                                    nn.LayerNorm(self.decoder_embed_dim * 4),
+                                    nn.GELU(),
+                                    nn.Dropout(0.1),
+                                    
+                                    nn.Linear(self.decoder_embed_dim * 4, self.image_height * self.image_width * self.out_chans),
+                                )
+            return mlp_in, mlp_out
+        
+        elif module_name == 'predictor': 
+            
+            # input and output projection for predictor
+            
+            mlp_in = nn.Linear(self.encoder_embed_dim, self.predictor_embed_dim, bias=True)
+            mlp_out = nn.Linear(self.predictor_embed_dim, self.encoder_embed_dim, bias=True)
+            return mlp_in, mlp_out
+        
         else:
             raise ModuleNotFoundError('The given module does not exist! or the configs are not correct')
     
