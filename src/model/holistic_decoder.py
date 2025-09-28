@@ -21,7 +21,7 @@ class HolisticDecoder(baseTransformer):
         
         super().__init__(config=config)
         
-        self.decoder_projection_in, self.decoder_projection_out = self.get_projection('holistic_decoder')
+        self.decoder_projection, self.decoder_pred_image = self.get_projection('holistic_decoder')
         self.decoder_pos_embed = self.get_positional_encoder(self.decoder_embed_dim)
         self.decoder_blocks = self.get_transformer_blocks(self.decoder_embed_dim, self.decoder_depth)
         self.decoder_norm = self.get_ln(self.decoder_embed_dim)
@@ -101,7 +101,7 @@ class HolisticDecoder(baseTransformer):
         
 
         # Project to decoder dimension
-        x = self.decoder_projection_in(encoded_features)  # [B, T, N_keep, decoder_embed_dim
+        x = self.decoder_projection(encoded_features)  # [B, T, N_keep, decoder_embed_dim
                 
         # Add positional encoding
         x = self.decoder_pos_embed(x)
@@ -114,7 +114,7 @@ class HolisticDecoder(baseTransformer):
         x = self.decoder_norm(x)
         
         # Project predictions 
-        pred_patches = self.decoder_projection_out(x)  # [B, T, N, ps*ps*C]
+        pred_patches = self.decoder_pred_image(x)  # [B, T, N, ps*ps*C]
         
         # Compute loss
         loss = None
