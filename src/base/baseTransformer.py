@@ -65,35 +65,30 @@ class baseTransformer(nn.Module, ABC):
             return mlp_in
         
         elif module_name == 'oc_encoder':
-            # Sequential projection for object centric encoder to reduce the dimension of the input images
-            
-            input_dim = self.image_height * self.image_width * self.in_chans  # 49,152
-
-            intermediate_dim1 = input_dim // 4   # 49,152 → 12,288
-            intermediate_dim2 = input_dim // 8   # 49,152 → 6,144
-            intermediate_dim3 = input_dim // 16  # 49,152 → 3,072
+            # Efficient CNN-based projection for object centric encoder
+            # Much more efficient than MLP: 128x128x3 → 8x8x512 → 512
             
             mlp_in = nn.Sequential(
-                # First compression stage
-                nn.Linear(input_dim, intermediate_dim1),  # 49,152 → 12,288
-                nn.LayerNorm(intermediate_dim1),
+                # Efficient downsampling with CNN layers
+                nn.Conv2d(self.in_chans, 64, kernel_size=4, stride=4, padding=0),  # 128x128x3 → 32x32x64
+                nn.BatchNorm2d(64),
                 nn.GELU(),
-                nn.Dropout(0.1),
                 
-                # Second compression stage  
-                nn.Linear(intermediate_dim1, intermediate_dim2),  # 12,288 → 6,144
-                nn.LayerNorm(intermediate_dim2),
+                nn.Conv2d(64, 128, kernel_size=2, stride=2, padding=0),  # 32x32x64 → 16x16x128
+                nn.BatchNorm2d(128),
                 nn.GELU(),
-                nn.Dropout(0.1),
                 
-                # Third compression stage
-                nn.Linear(intermediate_dim2, intermediate_dim3),  # 6,144 → 3,072
-                nn.LayerNorm(intermediate_dim3),
+                nn.Conv2d(128, 256, kernel_size=2, stride=2, padding=0),  # 16x16x128 → 8x8x256
+                nn.BatchNorm2d(256),
                 nn.GELU(),
-                nn.Dropout(0.1),
                 
-                # Final projection to embedding dimension
-                nn.Linear(intermediate_dim3, self.encoder_embed_dim),  # 3,072 → 512
+                nn.Conv2d(256, self.encoder_embed_dim, kernel_size=1, stride=1, padding=0),  # 8x8x256 → 8x8x512
+                nn.BatchNorm2d(self.encoder_embed_dim),
+                nn.GELU(),
+                
+                # Global average pooling to get 512-dim vector
+                nn.AdaptiveAvgPool2d(1),  # 8x8x512 → 1x1x512
+                nn.Flatten(),  # 1x1x512 → 512
                 nn.LayerNorm(self.encoder_embed_dim),
             )
             return mlp_in

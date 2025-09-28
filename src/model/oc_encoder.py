@@ -113,11 +113,15 @@ class ObjectCentricEncoder(baseTransformer):
         B, T, num_frames, C, H, W = object_frames.shape
         patch_size = C*H*W
         
-        # Reshape object frames to patches
-        object_patches = object_frames.view(B,T,num_frames,patch_size)
+        object_frames = object_frames.view(B * T * num_frames, C, H, W)  
+        cnn_features = self.patch_projection(object_frames)   # → [B*T*11, 512]
+        object_tokens = cnn_features.view(B, T, num_frames, self.encoder_embed_dim) # [B, T, num_frames, 512]
+
+        # # Reshape object frames to patches
+        # object_patches = object_frames.view(B,T,num_frames,patch_size)
         
-        # Project to transformer token dimension
-        object_tokens = self.patch_projection(object_patches)
+        # # Project to transformer token dimension
+        # object_tokens = self.patch_projection(object_patches)
         
         # Add positional encoding
         object_tokens = self.encoder_pos_embed(object_tokens)
