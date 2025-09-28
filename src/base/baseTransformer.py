@@ -107,19 +107,38 @@ class baseTransformer(nn.Module, ABC):
             # MLP for decoder input and output reconstruction head with upsampling
             
             mlp_in = nn.Linear(self.encoder_embed_dim, self.decoder_embed_dim, bias=True)
+            # CNN-based decoder for efficient image reconstruction
+            # Start from 1x1 feature maps and upsample to full image
             mlp_out = nn.Sequential(
-                                    nn.Linear(self.decoder_embed_dim, self.decoder_embed_dim * 2),
-                                    nn.LayerNorm(self.decoder_embed_dim * 2),
-                                    nn.GELU(),
-                                    nn.Dropout(0.1),
-                                    
-                                    nn.Linear(self.decoder_embed_dim * 2, self.decoder_embed_dim * 4),
-                                    nn.LayerNorm(self.decoder_embed_dim * 4),
-                                    nn.GELU(),
-                                    nn.Dropout(0.1),
-                                    
-                                    nn.Linear(self.decoder_embed_dim * 4, self.image_height * self.image_width * self.out_chans),
-                                )
+                # Reshape to spatial dimensions for CNN processing
+                nn.Linear(self.decoder_embed_dim, 8 * 8 * 256),  # 384 → 8x8x256
+                nn.Unflatten(1, (256, 8, 8)),  # Reshape to [B, 256, 8, 8]
+                
+                # Upsampling path: 8x8 → 16x16 → 32x32 → 64x64 → 128x128
+                nn.Upsample(scale_factor=2, mode="nearest"),  # 8x8 → 16x16
+                nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(128),
+                nn.GELU(),
+                
+                nn.Upsample(scale_factor=2, mode="nearest"),  # 16x16 → 32x32
+                nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(64),
+                nn.GELU(),
+                
+                nn.Upsample(scale_factor=2, mode="nearest"),  # 32x32 → 64x64
+                nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(32),
+                nn.GELU(),
+                
+                nn.Upsample(scale_factor=2, mode="nearest"),  # 64x64 → 128x128
+                nn.Conv2d(32, 16, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(16),
+                nn.GELU(),
+                
+                # Final projection to RGB channels
+                nn.Conv2d(16, self.out_chans, kernel_size=3, stride=1, padding=1),  # 128x128x16 → 128x128x3
+                nn.Tanh()  # Output in [-1, 1] range
+            )
             return mlp_in, mlp_out
         
         elif module_name == 'predictor': 
