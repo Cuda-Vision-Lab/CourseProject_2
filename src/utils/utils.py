@@ -119,7 +119,11 @@ def load_model(model, mode, savepath):
         # Freeze encoder and decoder for training the predictor
         model.encoder.requires_grad_(False)
         model.decoder.requires_grad_(False)
-
+        
+    elif mode == "AE_inference":
+        model.encoder.load_state_dict(checkpoint['encoder_state_dict'])
+        model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
+        
     elif mode == "inference":
         model.encoder.load_state_dict(checkpoint['encoder_state_dict'])
         model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
