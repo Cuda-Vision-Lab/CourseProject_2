@@ -72,6 +72,10 @@ def show_logs():
     
 if __name__ == "__main__":
     
+    # Set CUDA memory allocation configuration for better memory management
+    import os
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    
     parser = argparse.ArgumentParser( description="Trainer for Autoencoder, Predictor, and Inference modes. Options:\n")
     parser.add_argument('-a',   '--ae', action='store_true', help='Enable autoencoder training mode')
     parser.add_argument('-p',   '--predictor', action='store_true', help='Enable predictor training mode')
