@@ -142,7 +142,12 @@ if __name__ == "__main__":
         
         # Load AE weights, freeze encoder and decoder
         model = load_model(model, mode="predictor_training", savepath= args.ackpt) 
-
+        
+        if not( any(p.requires_grad for p in model.encoder.parameters()) or (any(p.requires_grad for p in model.decoder.parameters()))):
+            logging.info("Encoder and decoder parameters are frozen. Proceeding to train the predictor ...")
+        else:
+            logging.error( "Encoder and decoder parameters are NOT FROZEN!! Please freeze them before training the predictor")
+            
         training_mode = "Predictor"
         
         #Train and save predictor checkpoints
