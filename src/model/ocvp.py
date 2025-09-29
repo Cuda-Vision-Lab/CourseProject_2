@@ -28,23 +28,27 @@ class TransformerPredictor(nn.Module):
     """
     Transformer Predictor module for both holistic and object centric scene representations
     """
-    def __init__(self, encoder, decoder, predictor):
+    def __init__(self, encoder, decoder, predictor, mode):
         
         super().__init__()
         
         self.encoder = encoder
         self.decoder = decoder
         self.predictor = predictor 
-        
+        self.mode = mode
         return
     
     def forward(self, images, masks=None, bboxes=None):
         
+        # Note: input and target ranges are not used in the predictor. Only for the visualizations of the images in the notebook.
+        
         encoded_features = self.encoder(images, masks, bboxes)
-    
-        preds, loss = self.predictor(encoded_features) # predictor should return loss in the training mode
-    
-        return preds, loss
+        if self.mode == 'inference':
+            preds, loss, input_range, target_range = self.predictor(encoded_features, mode=self.mode) 
+            return preds, loss, input_range, target_range
+        else:
+            preds, loss = self.predictor(encoded_features, mode=self.mode)
+            return preds, loss
     
     
     

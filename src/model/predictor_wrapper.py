@@ -34,7 +34,7 @@ class PredictorWrapper(nn.Module):
         self.num_preds = config['vit_cfg']['num_preds']
         self.predictor_window_size = config['vit_cfg']['predictor_window_size']
         
-    def forward(self, encoder_features):
+    def forward(self, encoder_features, mode):
         """
 
         Args:
@@ -57,7 +57,9 @@ class PredictorWrapper(nn.Module):
         predictor_input = encoder_features[:, slicing_idx : slicing_idx+self.num_preds].clone()  # (B, num_preds, num_objects, D) e.g., [B, 5, 11, 512]
 
         target = encoder_features[:, slicing_idx+self.num_preds:slicing_idx+(2*self.num_preds)].clone()  # Future frames for loss computation
-        
+
+        input_range = (slicing_idx, slicing_idx+self.num_preds)
+        target_range = (slicing_idx+self.num_preds, slicing_idx+(2*self.num_preds))
         losses = []
         pred_embeds = []
         
@@ -78,7 +80,10 @@ class PredictorWrapper(nn.Module):
         pred_embeds = torch.stack(pred_embeds, dim=1)  # (B, num_preds, num_objects, D)
         total_loss = torch.stack(losses).mean()  # mean over prediction steps 
         
-        return pred_embeds, total_loss
+        if mode == 'inference':
+            return pred_embeds, total_loss, input_range, target_range
+        else:
+            return pred_embeds, total_loss
     
     def forward_loss(self, target, pred):
         """
