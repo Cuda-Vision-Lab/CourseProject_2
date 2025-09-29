@@ -8,7 +8,7 @@ config = {
             'data': {
                     'dataset_path': '/home/nfs/inf6/data/datasets/MOVi/movi_c/',
 
-                    'batch_size': 8,  # Further reduced to prevent OOM during decoder upsampling with AMP
+                    'batch_size': 4,  # Further reduced to prevent OOM during decoder upsampling with AMP
                     
                     'patch_size': 16,
                     
@@ -16,18 +16,18 @@ config = {
                     
                     'num_workers': 8,  # Use 8 CPU cores for data loading
                     
-                    'image_height' : 128,
+                    'image_height' : 64,
                     
-                    'image_width' : 128,
+                    'image_width' : 64,
                     },
  
             'training': {         
                         'train':{
-                            'shuffle': True,
+                            'shuffle': False,
                             'transforms': 'train'
                                 },
                         'validation':{
-                            'shuffle': True,
+                            'shuffle': False,
                             'transforms': 'validation'
                                     },
                         
@@ -37,9 +37,9 @@ config = {
 
                         'early_stopping_patience': 15,
                         
-                        'model_name' : '03_OC_AE_XL',
+                        'model_name' : '05_OC_AE_XL_64_Linear',
                         
-                        'lr' : 1e-3,  # Reduced from 4e-3 for more stable training
+                        'lr' : 1e-4,  # Further reduced for better convergence with larger model
                         
                         'save_frequency': 25,
                         
@@ -47,7 +47,7 @@ config = {
                         
                         'use_early_stopping': True,
                         
-                        'use_transforms': True,  ## TOOD: change to True for training
+                        'use_transforms': False,  ## TOOD: change to True for training
                         
                         'use_amp': True,  # Enable Mixed Precision Training
                         
@@ -55,9 +55,9 @@ config = {
                         },
          
             'vit_cfg': {
-                        'encoder_embed_dim' : 256, # Increased from 64
+                        'encoder_embed_dim' : 512, # Increased significantly for better representation capacity
                         
-                        'decoder_embed_dim' : 192, # Increased to match encoder for better reconstruction
+                        'decoder_embed_dim' : 384, # Increased to match encoder for better reconstruction
                         
                         'max_len' : 64,  
                         
