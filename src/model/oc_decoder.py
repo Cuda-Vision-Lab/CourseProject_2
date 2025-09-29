@@ -89,18 +89,18 @@ class ObjectCentricDecoder(baseTransformer):
         x = self.decoder_norm(x)
         
         # Project to frame predictions
-        # pred_frames = self.decoder_projection_out(x)  # [B, T, Num_objects, H * W * out_chans]
+        pred_frames = self.decoder_projection_out(x)  # [B, T, Num_objects, H * W * out_chans]
         
         # Project to frame predictions using CNN decoder
         # Reshape for CNN processing: [B*T*Num_objects, decoder_embed_dim]
-        x_flat = x.view(B * T * Num_objects, self.decoder_embed_dim)
+        # x_flat = x.view(B * T * Num_objects, self.decoder_embed_dim)
         
         # Apply CNN decoder: [B*T*Num_objects, C, H, W]
-        pred_frames_flat = self.decoder_projection_out(x_flat)
+        # pred_frames_flat = self.decoder_projection_out(x_flat)
         
-        # pred_frames = pred_frames.view(B, T, Num_objects, self.out_chans, self.image_height, self.image_width) # [B, T, Num_objects, C, H, W ]
+        pred_frames = pred_frames.view(B, T, Num_objects, self.out_chans, self.image_height, self.image_width) # [B, T, Num_objects, C, H, W ]
         # Reshape back to [B, T, Num_objects, C, H, W]
-        pred_frames = pred_frames_flat.view(B, T, Num_objects, self.out_chans, self.image_height, self.image_width)
+        # pred_frames = pred_frames_flat.view(B, T, Num_objects, self.out_chans, self.image_height, self.image_width)
         
         # Combine objects to reconstruct scene
         scene_recons = self.combine_objects_to_scene(pred_frames)  # [B, T, C, H, W]
