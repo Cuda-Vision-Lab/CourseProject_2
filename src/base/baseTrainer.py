@@ -44,8 +44,9 @@ class baseTrainer:
         Loading dataset and data-loaders
         """
         path = self.cfg['data']['dataset_path']
-        train_dataset = load_data(path, split='train', use_transforms=self.cfg['training']['train']['transforms'])
-        val_dataset = load_data(path, split='validation', use_transforms=self.cfg['training']['validation']['transforms'])
+        use_transforms = self.cfg['training']['use_transforms']
+        train_dataset = load_data(path, split='train', use_transforms=use_transforms)
+        val_dataset = load_data(path, split='validation', use_transforms=use_transforms)
         
         self.train_loader = build_data_loader(train_dataset, split='train')
         self.eval_loader = build_data_loader(val_dataset, split='validation')
