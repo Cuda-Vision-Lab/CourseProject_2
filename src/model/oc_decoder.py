@@ -31,16 +31,18 @@ class ObjectCentricDecoder(baseTransformer):
         Combine object frames back to full scene by summing them.
         
         Args:
-            object_frames: [B, T, num_objects, C, H, W]
+            object_frames: [B, T, num_objects, C, H, W] - values in [-1, 1] range
             
         Returns:
-            scene: [B, T, C, H, W]
+            scene: [B, T, C, H, W] - values in [-1, 1] range
         """
         # Simple approach: sum all object frames (assumes objects don't overlap significantly)
         scene = torch.sum(object_frames, dim=2)  # [B, T, C, H, W]
         
-        # Clamp to valid pixel range
-        scene = torch.clamp(scene, 0.0, 1.0)
+               # Clamp to valid pixel range
+        # scene = torch.clamp(scene, 0.0, 1.0)
+        # No clamping needed here - the CNN decoder already outputs in [-1, 1] range
+        # and we'll convert to [0, 1] range in the forward method
         
         return scene
     
@@ -102,6 +104,10 @@ class ObjectCentricDecoder(baseTransformer):
         
         # Combine objects to reconstruct scene
         scene_recons = self.combine_objects_to_scene(pred_frames)  # [B, T, C, H, W]
+        
+        # Convert from [-1, 1] to [0, 1] range to match input data normalization
+        scene_recons = (scene_recons + 1.0) / 2.0
+        scene_recons = torch.clamp(scene_recons, 0.0, 1.0)
         
         # Calculate the loss
         loss = None
