@@ -101,34 +101,6 @@ class baseTransformer(nn.Module, ABC):
             #                         nn.LayerNorm(self.encoder_embed_dim),
             #                     )
             
-            # Use progressive compression with multiple stages - Tried on cuda4. Not much better than simple approach.
-            # hidden_dim1 = in_dim // 4      # 3072
-            # hidden_dim2 = in_dim // 8      # 1536
-            # hidden_dim3 = in_dim // 16     # 768
-            
-            # mlp_in = nn.Sequential(
-            #     # Stage 1: Initial compression with residual-like structure
-            #     nn.Linear(in_dim, hidden_dim1, bias=True),
-            #     nn.LayerNorm(hidden_dim1),
-            #     nn.GELU(),
-            #     nn.Dropout(0.1),
-                
-            #     # Stage 2: Further compression
-            #     nn.Linear(hidden_dim1, hidden_dim2, bias=True),
-            #     nn.LayerNorm(hidden_dim2),
-            #     nn.GELU(),
-            #     nn.Dropout(0.1),
-                
-            #     # Stage 3: Intermediate representation
-            #     nn.Linear(hidden_dim2, hidden_dim3, bias=True),
-            #     nn.LayerNorm(hidden_dim3),
-            #     nn.GELU(),
-            #     nn.Dropout(0.1),
-                
-            #     # Stage 4: Final projection to embedding dimension
-            #     nn.Linear(hidden_dim3, self.encoder_embed_dim, bias=True),
-            #     nn.LayerNorm(self.encoder_embed_dim),
-            # )
             
             
             in_dim = self.image_height * self.image_width * self.in_chans
@@ -185,8 +157,32 @@ class baseTransformer(nn.Module, ABC):
                     return self.fusion(combined)
             
             # Choose between strategies:
-            # Strategy 1: Residual MLP (current)
-            mlp_in = ResidualMLP(in_dim, self.encoder_embed_dim)
+            # Strategy 1: Residual MLP (current) - Comment out if causing issues
+            # mlp_in = ResidualMLP(in_dim, self.encoder_embed_dim)
+            
+            # Working Middle-Ground Approach: Enhanced but stable
+            mlp_in = nn.Sequential(
+                nn.Linear(in_dim, in_dim//3, bias=True),  # 12288 -> 4096
+                nn.LayerNorm(in_dim//3),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                nn.Linear(in_dim//3, in_dim//6, bias=True),  # 4096 -> 2048  
+                nn.LayerNorm(in_dim//6),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                nn.Linear(in_dim//6, self.encoder_embed_dim, bias=True),  # 2048 -> 512
+                nn.LayerNorm(self.encoder_embed_dim),
+            )
+            
+            # FALLBACK: Ultra-simple approach if above causes issues
+            # mlp_in = nn.Sequential(
+            #     nn.Linear(in_dim, in_dim//4, bias=True),  # 12288 -> 3072
+            #     nn.GELU(),
+            #     nn.Linear(in_dim//4, self.encoder_embed_dim, bias=True),  # 3072 -> 512
+            #     nn.LayerNorm(self.encoder_embed_dim),
+            # )
             
             # Strategy 3: Information-Preserving Bottleneck (alternative)
             # Uncomment below and comment above to use this strategy
@@ -257,35 +253,6 @@ class baseTransformer(nn.Module, ABC):
             #             nn.Linear(self.decoder_embed_dim * 2, self.image_height * self.image_width * self.out_chans)
             #             # nn.Sigmoid()
             #         )
-            
-            # # Progressive expansion - mirror the encoder compression - Tried on cuda4. Not much better than simple approach.
-            # hidden_dim1 = out_dim // 16    # 768  - start from small
-            # hidden_dim2 = out_dim // 8     # 1536
-            # hidden_dim3 = out_dim // 4     # 3072
-                        # mlp_out = nn.Sequential(
-            #     # Stage 1: Initial expansion from decoder embedding
-            #     nn.Linear(self.decoder_embed_dim, hidden_dim1, bias=True),
-            #     nn.LayerNorm(hidden_dim1),
-            #     nn.GELU(),
-            #     nn.Dropout(0.1),
-                
-            #     # Stage 2: Progressive expansion
-            #     nn.Linear(hidden_dim1, hidden_dim2, bias=True),
-            #     nn.LayerNorm(hidden_dim2),
-            #     nn.GELU(),
-            #     nn.Dropout(0.1),
-                
-            #     # Stage 3: Further expansion
-            #     nn.Linear(hidden_dim2, hidden_dim3, bias=True),
-            #     nn.LayerNorm(hidden_dim3),
-            #     nn.GELU(),
-            #     nn.Dropout(0.1),
-                
-            #     # Stage 4: Final projection to output dimension
-            #     nn.Linear(hidden_dim3, out_dim, bias=True),
-            #     # Use Tanh for bounded output in [-1, 1] range
-            #     nn.Tanh()
-            # )
             
             
             out_dim = self.image_height * self.image_width * self.out_chans  # 64*64*3 = 12288
@@ -362,8 +329,32 @@ class baseTransformer(nn.Module, ABC):
                     return self.final_layer(combined)
             
             # Choose between strategies:
-            # Strategy 2: Multi-Scale Decoder (current)
-            mlp_out = MultiScaleDecoder(self.decoder_embed_dim, out_dim)
+            # Strategy 2: Multi-Scale Decoder (current) - Comment out if causing issues
+            # mlp_out = MultiScaleDecoder(self.decoder_embed_dim, out_dim)
+            
+            # Working Middle-Ground Approach: Enhanced but stable decoder
+            mlp_out = nn.Sequential(
+                nn.Linear(self.decoder_embed_dim, self.decoder_embed_dim * 2, bias=True),  # 384 -> 768
+                nn.LayerNorm(self.decoder_embed_dim * 2),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                nn.Linear(self.decoder_embed_dim * 2, self.decoder_embed_dim * 4, bias=True),  # 768 -> 1536
+                nn.LayerNorm(self.decoder_embed_dim * 4),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                
+                nn.Linear(self.decoder_embed_dim * 4, out_dim, bias=True),  # 1536 -> 12288
+                nn.Tanh()  # Bounded output [-1, 1]
+            )
+            
+            # FALLBACK: Ultra-simple decoder if above causes issues
+            # mlp_out = nn.Sequential(
+            #     nn.Linear(self.decoder_embed_dim, self.decoder_embed_dim * 4, bias=True),  # 384 -> 1536
+            #     nn.GELU(),
+            #     nn.Linear(self.decoder_embed_dim * 4, out_dim, bias=True),  # 1536 -> 12288
+            #     nn.Tanh()
+            # )
             
             # Strategy 4: Hierarchical Reconstruction (alternative)
             # Uncomment below and comment above to use this strategy
