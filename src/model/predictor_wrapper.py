@@ -100,7 +100,7 @@ class PredictorWrapper(nn.Module):
         
     #     return loss
     
-    def forward_loss_improved(self, target, pred):
+    def forward_loss(self, target, pred):
         """Improved loss function"""
         # Base MSE loss
         mse_loss = F.mse_loss(pred, target)

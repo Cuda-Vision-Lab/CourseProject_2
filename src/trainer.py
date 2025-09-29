@@ -141,18 +141,19 @@ if __name__ == "__main__":
         encoder = get_encoder(scene_rep = args.scene_rep)
         decoder = get_decoder(scene_rep = args.scene_rep)
         predictor = get_predictor(scene_rep = args.scene_rep)
-              
-        model = TransformerPredictor(encoder, decoder, predictor)
+        
+        training_mode = "Predictor"
+        
+        model = TransformerPredictor(encoder, decoder, predictor, mode=training_mode)
         
         # Load AE weights, freeze encoder and decoder
-        model = load_model(model, mode="predictor_training", savepath= args.ackpt) 
+        model = load_model(model, mode="predictor_training", path_AE= args.ackpt) 
         
         if not( any(p.requires_grad for p in model.encoder.parameters()) or (any(p.requires_grad for p in model.decoder.parameters()))):
             logging.info("Encoder and decoder parameters are frozen. Proceeding to train the predictor ...")
         else:
             logging.error( "Encoder and decoder parameters are NOT FROZEN!! Please freeze them before training the predictor")
             
-        training_mode = "Predictor"
         
         #Train and save predictor checkpoints
         trainer.setup_model(model=model, mode=training_mode)
