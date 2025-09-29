@@ -8,7 +8,7 @@ config = {
             'data': {
                     'dataset_path': '/home/nfs/inf6/data/datasets/MOVi/movi_c/',
 
-                    'batch_size': 32,  # Reduced from 64 to improve memory efficiency
+                    'batch_size': 8,  # Further reduced to prevent OOM during decoder upsampling with AMP
                     
                     'patch_size': 16,
                     
@@ -27,17 +27,17 @@ config = {
                             'transforms': 'train'
                                 },
                         'validation':{
-                            'shuffle': False,
+                            'shuffle': True,
                             'transforms': 'validation'
                                     },
                         
-                        'num_epochs':100,
+                        'num_epochs':300,
 
-                        'warmup_epochs': 5,
+                        'warmup_epochs': 15,
 
-                        'early_stopping_patience': 10,
+                        'early_stopping_patience': 15,
                         
-                        'model_name' : '01_OC_AE_XL',
+                        'model_name' : '03_OC_AE_XL',
                         
                         'lr' : 1e-3,  # Reduced from 4e-3 for more stable training
                         
@@ -47,13 +47,17 @@ config = {
                         
                         'use_early_stopping': True,
                         
+                        'use_transforms': True,  ## TOOD: change to True for training
+                        
+                        'use_amp': True,  # Enable Mixed Precision Training
+                        
                         'root' : '/home/user/soltania1/CourseProject_2/src',
                         },
          
             'vit_cfg': {
-                        'encoder_embed_dim' : 512, # Increased from 64
+                        'encoder_embed_dim' : 256, # Increased from 64
                         
-                        'decoder_embed_dim' : 384, # Increased to match encoder for better reconstruction
+                        'decoder_embed_dim' : 192, # Increased to match encoder for better reconstruction
                         
                         'max_len' : 64,  
                         
@@ -73,7 +77,7 @@ config = {
                         
                         'decoder_depth' : 8, # Moderate increase (was 6, now between 6-12)
                         
-                        'predictor_depth' : 8,
+                        'predictor_depth' : 6,
                         
                         'num_preds' : 5, # number of predictor predictions
                         
