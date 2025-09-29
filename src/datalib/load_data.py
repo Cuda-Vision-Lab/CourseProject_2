@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 import torch
 from CONFIG import config
-from .transforms import get_train_transforms, get_validation_transforms
+from .transforms import get_train_transforms, get_validation_transforms, get_base_transforms
 
 def load_data(path, split="train", use_transforms=True):
     """
@@ -32,7 +32,7 @@ def load_data(path, split="train", use_transforms=True):
         else:
             transforms = get_validation_transforms(base_seed=42)
     else:
-        transforms = None
+        transforms = get_base_transforms(base_seed=42)
         
     #  dataset = MOVIC(path, split=split, transforms=None)
     dataset = MOVIC(path, split=split, transforms=transforms, num_epochs=num_epochs)

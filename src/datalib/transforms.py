@@ -5,6 +5,7 @@ import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from torchvision.transforms import ToTensor, Normalize, Compose
 import time
+from CONFIG import config
 
 class ParameterCompose:
     def __init__(self, transforms, base_seed=42):
@@ -194,8 +195,10 @@ def get_train_transforms(base_seed=42):
     """
     Get augmentation transforms for training
     """
+    image_height = config['data']['image_height']
+    image_width = config['data']['image_width']
     return ParameterCompose([
-        ResizeTransform(size=(128, 128)),
+        ResizeTransform(size=(image_height, image_width)),
         RandomHorizontalFlip(),
         RandomVerticalFlip(),
         NormalizeTransform()
@@ -206,8 +209,21 @@ def get_validation_transforms(base_seed=42):
     """
     Get transforms for validation (no augmentation)
     """
+    image_height = config['data']['image_height']
+    image_width = config['data']['image_width']
     return ParameterCompose([
-        ResizeTransform(size=(128, 128)),
+        ResizeTransform(size=(image_height, image_width)),
         NormalizeTransform()
     ], base_seed=base_seed)
 
+
+def get_base_transforms(base_seed=42):
+    """
+    Get base transforms for the dataset
+    """
+    image_height = config['data']['image_height']
+    image_width = config['data']['image_width']
+    return ParameterCompose([
+        ResizeTransform(size=(image_height, image_width)),
+        NormalizeTransform()
+    ], base_seed=base_seed)
