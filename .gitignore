@@ -3,4 +3,5 @@ src/utils/wrappers.py
 src/model/Predictors.py
 venv
 src/experiments/*
-!src/experiments/01_Holistic_Predictor_XL
+!src/experiments/02_Holistic_Predictor_XL
+src/experiments/02_Holistic_Predictor_XL/checkpoints/*.pth
