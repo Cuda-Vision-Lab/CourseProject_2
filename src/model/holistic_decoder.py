@@ -3,6 +3,7 @@ Holistic Scene Representation Decoder
 """
 
 import torch.nn as nn
+import torch
 from base.baseTransformer import baseTransformer
 from CONFIG import config
 
@@ -126,5 +127,9 @@ class HolisticDecoder(baseTransformer):
     
         # Reconstruct full images from predicted patches
         recons = self.unpatchify(pred_patches)
+        
+        # Convert from [-1, 1] to [0, 1] range to match input data normalization
+        recons = (recons + 1.0) / 2.0
+        recons = torch.clamp(recons, 0.0, 1.0)
             
         return recons, loss
