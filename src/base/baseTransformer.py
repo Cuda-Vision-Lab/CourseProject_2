@@ -70,22 +70,17 @@ class baseTransformer(nn.Module, ABC):
             
             mlp_in = nn.Sequential(
                                     # Efficient downsampling with CNN layers
-                                    nn.Conv2d(self.in_chans, 32, kernel_size=4, stride=4, padding=0),  # 128x128x3 → 32x32x32
-                                    nn.BatchNorm2d(32),
-                                    nn.GELU(),
-                                    nn.Conv2d(32, 64, kernel_size=2, stride=2, padding=0),  # 32x32x32 → 16x16x64
-                                    nn.BatchNorm2d(64),
-                                    nn.GELU(),
-                                    nn.Conv2d(64, 128, kernel_size=2, stride=2, padding=0),  # 16x16x64 → 8x8x128
-                                    nn.BatchNorm2d(128),
-                                    nn.GELU(),
-                                    nn.Conv2d(128, self.encoder_embed_dim, kernel_size=1, stride=1, padding=0),  # 8x8x128 → 8x8x512
-                                    nn.BatchNorm2d(self.encoder_embed_dim),
-                                    nn.GELU(),
+                                    nn.Conv2d(self.in_chans, 16, kernel_size=4, stride=4, padding=0),  # 128x128x3 → 32x32x16
+                                    nn.ReLU(),
+                                    nn.Conv2d(16, 32, kernel_size=2, stride=2, padding=0),  # 32x32x16 → 16x16x32
+                                    nn.ReLU(),
+                                    nn.Conv2d(32, 64, kernel_size=2, stride=2, padding=0),  # 16x16x32 → 8x8x64
+                                    nn.ReLU(),
+                                    nn.Conv2d(64, self.encoder_embed_dim, kernel_size=1, stride=1, padding=0),  # 8x8x64 → 8x8x512
+                                    nn.ReLU(),
                                     # Global average pooling to get 512-dim vector
                                     nn.AdaptiveAvgPool2d(1),  # 8x8x512 → 1x1x512
                                     nn.Flatten(),  # 1x1x512 → 512
-                                    nn.LayerNorm(self.encoder_embed_dim),
                                 )
             return mlp_in
                 
@@ -107,27 +102,21 @@ class baseTransformer(nn.Module, ABC):
             # Start from 1x1 feature maps and upsample to full image
             mlp_out = nn.Sequential(
                                     # Reshape to spatial dimensions for CNN processing
-                                    nn.Linear(self.decoder_embed_dim, 8 * 8 * 128),  # 384 → 8x8x128
-                                    nn.Unflatten(1, (128, 8, 8)),  # Reshape to [B, 128, 8, 8]
+                                    nn.Linear(self.decoder_embed_dim, 8 * 8 * 32),  # e.g., 384 → 8x8x32
+                                    nn.Unflatten(1, (32, 8, 8)),  # Reshape to [B, 32, 8, 8]
                                     # Upsampling path: 8x8 → 16x16 → 32x32 → 64x64 → 128x128
                                     nn.Upsample(scale_factor=2, mode="nearest"),  # 8x8 → 16x16
-                                    nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
-                                    nn.BatchNorm2d(64),
-                                    nn.GELU(),
-                                    nn.Upsample(scale_factor=2, mode="nearest"),  # 16x16 → 32x32
-                                    nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
-                                    nn.BatchNorm2d(32),
-                                    nn.GELU(),
-                                    nn.Upsample(scale_factor=2, mode="nearest"),  # 32x32 → 64x64
                                     nn.Conv2d(32, 16, kernel_size=3, stride=1, padding=1),
-                                    nn.BatchNorm2d(16),
-                                    nn.GELU(),
-                                    nn.Upsample(scale_factor=2, mode="nearest"),  # 64x64 → 128x128
+                                    nn.ReLU(),
+                                    nn.Upsample(scale_factor=2, mode="nearest"),  # 16x16 → 32x32
                                     nn.Conv2d(16, 8, kernel_size=3, stride=1, padding=1),
-                                    nn.BatchNorm2d(8),
-                                    nn.GELU(),
+                                    nn.ReLU(),
+                                    nn.Upsample(scale_factor=2, mode="nearest"),  # 32x32 → 64x64
+                                    nn.Conv2d(8, 4, kernel_size=3, stride=1, padding=1),
+                                    nn.ReLU(),
+                                    nn.Upsample(scale_factor=2, mode="nearest"),  # 64x64 → 128x128
                                     # Final projection to RGB channels
-                                    nn.Conv2d(8, self.out_chans, kernel_size=3, stride=1, padding=1),  # 128x128x8 → 128x128x3
+                                    nn.Conv2d(4, self.out_chans, kernel_size=3, stride=1, padding=1),  # 128x128x4 → 128x128x3
                                     nn.Tanh()  # Output in [-1, 1] range
                                 )
             return mlp_in, mlp_out
