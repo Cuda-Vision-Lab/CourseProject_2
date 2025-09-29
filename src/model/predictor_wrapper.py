@@ -85,13 +85,38 @@ class PredictorWrapper(nn.Module):
         else:
             return pred_embeds, total_loss
     
-    def forward_loss(self, target, pred):
-        """
-        Compute reconstruction loss .
-        """
-        loss = F.mse_loss(pred, target)
+    # def forward_loss(self, target, pred):
+    #     """
+    #     Compute improved loss with temporal consistency.
+    #     """
+    #     # Base MSE loss
+    #     mse_loss = F.mse_loss(pred, target)
+        
+    #     # Add L1 loss for sparsity (helps with smoother predictions)
+    #     l1_loss = F.l1_loss(pred, target)
+        
+    #     # Combine losses with weights
+    #     loss = 0.8 * mse_loss + 0.2 * l1_loss
+        
+    #     return loss
+    
+    def forward_loss_improved(self, target, pred):
+        """Improved loss function"""
+        # Base MSE loss
+        mse_loss = F.mse_loss(pred, target)
+        
+        # Add L1 loss for sparsity
+        l1_loss = F.l1_loss(pred, target)
+        
+        # Add cosine similarity loss for better feature alignment
+        cos_sim = F.cosine_similarity(pred.flatten(1), target.flatten(1), dim=1)
+        cos_loss = (1 - cos_sim).mean()
+        
+        # Combine losses
+        loss = 0.6 * mse_loss + 0.2 * l1_loss + 0.2 * cos_loss
+        
         return loss
-
+    
     def _update_buffer_size(self, predictor_inputs):
         """
         Updating the inputs of a transformer model given the 'window_size'.
