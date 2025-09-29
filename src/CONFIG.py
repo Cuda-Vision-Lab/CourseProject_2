@@ -8,7 +8,7 @@ config = {
             'data': {
                     'dataset_path': '/home/nfs/inf6/data/datasets/MOVi/movi_c/',
 
-                    'batch_size': 4,  # Further reduced to prevent OOM during decoder upsampling with AMP
+                    'batch_size': 8,  # Further reduced to prevent OOM during decoder upsampling with AMP
                     
                     'patch_size': 16,
                     
@@ -37,9 +37,9 @@ config = {
 
                         'early_stopping_patience': 15,
                         
-                        'model_name' : '05_OC_AE_XL_64_Linear',
+                        'model_name' : '01_OC_AE_XL_64_Full_CNN',
                         
-                        'lr' : 1e-4,  # Further reduced for better convergence with larger model
+                        'lr' : 4e-4,  # Further reduced for better convergence with larger model
                         
                         'save_frequency': 25,
                         
@@ -77,7 +77,7 @@ config = {
                         
                         'decoder_depth' : 8, # Moderate increase (was 6, now between 6-12)
                         
-                        'predictor_depth' : 6,
+                        'predictor_depth' : 8,
                         
                         'num_preds' : 5, # number of predictor predictions
                         

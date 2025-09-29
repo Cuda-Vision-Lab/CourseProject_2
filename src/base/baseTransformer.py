@@ -67,9 +67,8 @@ class baseTransformer(nn.Module, ABC):
         
         elif module_name == 'oc_encoder':
             # Efficient CNN-based projection for object centric encoder
-            # Much more efficient than MLP: 128x128x3 → 8x8x512 → 512
-            
-            # mlp_in = nn.Sequential(
+            # CNN encoder: downsample image to latent representation
+                        # mlp_in = nn.Sequential(
             #                         # Efficient downsampling with CNN layers
             #                         nn.Conv2d(self.in_chans, 32, kernel_size=4, stride=4, padding=0),  # 128x128x3 → 32x32x32
             #                         nn.BatchNorm2d(32),
@@ -94,6 +93,8 @@ class baseTransformer(nn.Module, ABC):
             
             # mlp_in = nn.Linear(in_dim, self.encoder_embed_dim, bias=True) - Tried here. Works but a bit waek recons. 05_OC_AE_XL_64_Linear
             # Current simple approach (comment out to use advanced strategies)
+            in_dim = self.image_height * self.image_width * self.in_chans
+            
             # mlp_in = nn.Sequential( 
             #                         nn.Linear(in_dim, in_dim//2, bias=True),
             #                         nn.GELU(),
@@ -101,132 +102,38 @@ class baseTransformer(nn.Module, ABC):
             #                         nn.LayerNorm(self.encoder_embed_dim),
             #                     )
             
-            
-            
-            in_dim = self.image_height * self.image_width * self.in_chans
-
-            # Advanced Strategy 1: Residual MLP with Skip Connections
-            # This creates multiple compression pathways with residual connections
-            class ResidualMLP(nn.Module):
-                def __init__(self, in_dim, out_dim):
+            class ConvEncoder(nn.Module):
+                def __init__(self, in_chans, latent_dim, img_size):
                     super().__init__()
-                    # Multiple parallel pathways with different compression ratios
-                    self.pathway1_dims = [in_dim, in_dim//2, in_dim//4, out_dim//2]  # Aggressive path
-                    self.pathway2_dims = [in_dim, in_dim//3, out_dim//2]             # Moderate path
+                    self.img_size = img_size
                     
-                    # Pathway 1: Aggressive compression
-                    self.path1 = nn.ModuleList([
-                        nn.Sequential(
-                            nn.Linear(self.pathway1_dims[i], self.pathway1_dims[i+1]),
-                            nn.LayerNorm(self.pathway1_dims[i+1]),
-                            nn.GELU(),
-                            nn.Dropout(0.1)
-                        ) for i in range(len(self.pathway1_dims)-1)
-                    ])
-                    
-                    # Pathway 2: Moderate compression
-                    self.path2 = nn.ModuleList([
-                        nn.Sequential(
-                            nn.Linear(self.pathway2_dims[i], self.pathway2_dims[i+1]),
-                            nn.LayerNorm(self.pathway2_dims[i+1]),
-                            nn.GELU(),
-                            nn.Dropout(0.1)
-                        ) for i in range(len(self.pathway2_dims)-1)
-                    ])
-                    
-                    # Fusion layer
-                    self.fusion = nn.Sequential(
-                        nn.Linear(out_dim, out_dim),
-                        nn.LayerNorm(out_dim),
-                        nn.GELU()
+                    self.encoder = nn.Sequential(
+                        # Image size: img_size x img_size x in_chans
+                        nn.Conv2d(in_chans, 64, kernel_size=4, stride=2, padding=1),  # downsample x2
+                        nn.BatchNorm2d(64),
+                        nn.ReLU(True),
+                        
+                        nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # downsample x2
+                        nn.BatchNorm2d(128),
+                        nn.ReLU(True),
+                        
+                        nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # downsample x2
+                        nn.BatchNorm2d(256),
+                        nn.ReLU(True),
                     )
                     
+                    # Calculate flattened size after convolutions
+                    self.flatten_size = 256 * (img_size // 8) * (img_size // 8)
+                    self.fc = nn.Linear(self.flatten_size, latent_dim)
+
                 def forward(self, x):
-                    # Pathway 1
-                    x1 = x
-                    for layer in self.path1:
-                        x1 = layer(x1)
-                    
-                    # Pathway 2  
-                    x2 = x
-                    for layer in self.path2:
-                        x2 = layer(x2)
-                    
-                    # Combine pathways
-                    combined = torch.cat([x1, x2], dim=-1)
-                    return self.fusion(combined)
-            
-            # Choose between strategies:
-            # Strategy 1: Residual MLP (current) - Comment out if causing issues
-            # mlp_in = ResidualMLP(in_dim, self.encoder_embed_dim)
-            
-            # Working Middle-Ground Approach: Enhanced but stable
-            mlp_in = nn.Sequential(
-                nn.Linear(in_dim, in_dim//3, bias=True),  # 12288 -> 4096
-                nn.LayerNorm(in_dim//3),
-                nn.GELU(),
-                nn.Dropout(0.1),
-                
-                nn.Linear(in_dim//3, in_dim//6, bias=True),  # 4096 -> 2048  
-                nn.LayerNorm(in_dim//6),
-                nn.GELU(),
-                nn.Dropout(0.1),
-                
-                nn.Linear(in_dim//6, self.encoder_embed_dim, bias=True),  # 2048 -> 512
-                nn.LayerNorm(self.encoder_embed_dim),
-            )
-            
-            # FALLBACK: Ultra-simple approach if above causes issues
-            # mlp_in = nn.Sequential(
-            #     nn.Linear(in_dim, in_dim//4, bias=True),  # 12288 -> 3072
-            #     nn.GELU(),
-            #     nn.Linear(in_dim//4, self.encoder_embed_dim, bias=True),  # 3072 -> 512
-            #     nn.LayerNorm(self.encoder_embed_dim),
-            # )
-            
-            # Strategy 3: Information-Preserving Bottleneck (alternative)
-            # Uncomment below and comment above to use this strategy
-            """
-            class InfoPreservingBottleneck(nn.Module):
-                def __init__(self, in_dim, out_dim):
-                    super().__init__()
-                    
-                    # Create multiple compression ratios
-                    compress_ratios = [2, 4, 8, 16]  # Different compression levels
-                    self.compressors = nn.ModuleList()
-                    
-                    for ratio in compress_ratios:
-                        intermediate_dim = max(in_dim // ratio, out_dim)
-                        compressor = nn.Sequential(
-                            nn.Linear(in_dim, intermediate_dim),
-                            nn.LayerNorm(intermediate_dim),
-                            nn.GELU(),
-                            nn.Dropout(0.05),
-                            nn.Linear(intermediate_dim, out_dim // len(compress_ratios))
-                        )
-                        self.compressors.append(compressor)
-                    
-                    # Information fusion with learnable weights
-                    self.fusion_weights = nn.Parameter(torch.ones(len(compress_ratios)) / len(compress_ratios))
-                    self.final_norm = nn.LayerNorm(out_dim)
-                    
-                def forward(self, x):
-                    compressed_features = []
-                    for compressor in self.compressors:
-                        compressed_features.append(compressor(x))
-                    
-                    # Weighted combination
-                    stacked = torch.stack(compressed_features, dim=0)  # [num_ratios, B, T, N, out_dim//num_ratios]
-                    weights = torch.softmax(self.fusion_weights, dim=0).view(-1, 1, 1, 1, 1)
-                    weighted = stacked * weights
-                    combined = torch.sum(weighted, dim=0)  # [B, T, N, out_dim//num_ratios * num_ratios]
-                    
-                    # Concatenate all compressed features
-                    final_features = torch.cat(compressed_features, dim=-1)
-                    return self.final_norm(final_features)
-            
-            # mlp_in = InfoPreservingBottleneck(in_dim, self.encoder_embed_dim)
-            """
+                    # x shape: [B*T*Num_objects, C, H, W]
+                    x = self.encoder(x)           # [B*T*Num_objects, 256, H//8, W//8]
+                    x = x.view(x.size(0), -1)     # [B*T*Num_objects, 256*(H//8)*(W//8)]
+                    x = self.fc(x)                # [B*T*Num_objects, latent_dim]
+                    return x
+
+            mlp_in = ConvEncoder(self.in_chans, self.encoder_embed_dim, self.image_height)
 
             return mlp_in
                 
@@ -256,156 +163,36 @@ class baseTransformer(nn.Module, ABC):
             
             
             out_dim = self.image_height * self.image_width * self.out_chans  # 64*64*3 = 12288
-            
-            
-            # Advanced Strategy 2: Multi-Scale Decoder with Attention Pooling
-            class MultiScaleDecoder(nn.Module):
-                def __init__(self, in_dim, out_dim):
+
+
+            class SimpleCNNDecoder(nn.Module):
+                def __init__(self, decoder_embed_dim=self.decoder_embed_dim, out_chans=self.out_chans, image_size=self.image_height):
                     super().__init__()
+                    self.fc = nn.Linear(decoder_embed_dim, 128 * 8 * 8)  # project to feature map
                     
-                    # Multi-scale expansion pathways
-                    mid_dim1 = in_dim * 2      # 768
-                    mid_dim2 = in_dim * 4      # 1536  
-                    mid_dim3 = in_dim * 8      # 3072
-                    
-                    # Pathway 1: Fine-grained details (slow expansion)
-                    self.detail_path = nn.Sequential(
-                        nn.Linear(in_dim, mid_dim1),
-                        nn.LayerNorm(mid_dim1),
-                        nn.GELU(),
-                        nn.Dropout(0.1),
-                        nn.Linear(mid_dim1, mid_dim2),
-                        nn.LayerNorm(mid_dim2),
-                        nn.GELU(),
-                        nn.Dropout(0.1),
-                        nn.Linear(mid_dim2, out_dim//2)
+                    self.decoder = nn.Sequential(
+                        nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # 16x16
+                        nn.BatchNorm2d(64),
+                        nn.ReLU(inplace=True),
+                        
+                        nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),   # 32x32
+                        nn.BatchNorm2d(32),
+                        nn.ReLU(inplace=True),
+                        
+                        nn.ConvTranspose2d(32, out_chans, kernel_size=4, stride=2, padding=1),  # 64x64
+                        nn.Tanh()  # Output in [-1, 1] range to match the expected range
                     )
-                    
-                    # Pathway 2: Coarse structure (fast expansion)  
-                    self.structure_path = nn.Sequential(
-                        nn.Linear(in_dim, mid_dim3),
-                        nn.LayerNorm(mid_dim3),
-                        nn.GELU(),
-                        nn.Dropout(0.1),
-                        nn.Linear(mid_dim3, out_dim//2)
-                    )
-                    
-                    # Attention-based fusion
-                    self.attention = nn.MultiheadAttention(
-                        embed_dim=out_dim//2, 
-                        num_heads=8, 
-                        batch_first=True
-                    )
-                    
-                    # Final reconstruction layer
-                    self.final_layer = nn.Sequential(
-                        nn.Linear(out_dim, out_dim),
-                        nn.LayerNorm(out_dim),
-                        nn.Tanh()  # Bounded output
-                    )
-                    
-                def forward(self, x):
-                    # Multi-pathway processing
-                    detail_features = self.detail_path(x)      # Fine details
-                    structure_features = self.structure_path(x) # Coarse structure
-                    
-                    # Attention-based fusion
-                    # Reshape for attention: [B*T*N, 1, D//2]
-                    detail_reshaped = detail_features.unsqueeze(-2)
-                    structure_reshaped = structure_features.unsqueeze(-2)
-                    
-                    # Cross-attention between detail and structure
-                    fused_detail, _ = self.attention(detail_reshaped, structure_reshaped, structure_reshaped)
-                    fused_structure, _ = self.attention(structure_reshaped, detail_reshaped, detail_reshaped)
-                    
-                    # Combine and squeeze back
-                    fused_detail = fused_detail.squeeze(-2)
-                    fused_structure = fused_structure.squeeze(-2)
-                    
-                    # Concatenate pathways
-                    combined = torch.cat([fused_detail, fused_structure], dim=-1)
-                    
-                    # Final reconstruction
-                    return self.final_layer(combined)
-            
-            # Choose between strategies:
-            # Strategy 2: Multi-Scale Decoder (current) - Comment out if causing issues
-            # mlp_out = MultiScaleDecoder(self.decoder_embed_dim, out_dim)
-            
-            # Working Middle-Ground Approach: Enhanced but stable decoder
-            mlp_out = nn.Sequential(
-                nn.Linear(self.decoder_embed_dim, self.decoder_embed_dim * 2, bias=True),  # 384 -> 768
-                nn.LayerNorm(self.decoder_embed_dim * 2),
-                nn.GELU(),
-                nn.Dropout(0.1),
                 
-                nn.Linear(self.decoder_embed_dim * 2, self.decoder_embed_dim * 4, bias=True),  # 768 -> 1536
-                nn.LayerNorm(self.decoder_embed_dim * 4),
-                nn.GELU(),
-                nn.Dropout(0.1),
-                
-                nn.Linear(self.decoder_embed_dim * 4, out_dim, bias=True),  # 1536 -> 12288
-                nn.Tanh()  # Bounded output [-1, 1]
-            )
-            
-            # FALLBACK: Ultra-simple decoder if above causes issues
-            # mlp_out = nn.Sequential(
-            #     nn.Linear(self.decoder_embed_dim, self.decoder_embed_dim * 4, bias=True),  # 384 -> 1536
-            #     nn.GELU(),
-            #     nn.Linear(self.decoder_embed_dim * 4, out_dim, bias=True),  # 1536 -> 12288
-            #     nn.Tanh()
-            # )
-            
-            # Strategy 4: Hierarchical Reconstruction (alternative)
-            # Uncomment below and comment above to use this strategy
-            """
-            class HierarchicalReconstructor(nn.Module):
-                def __init__(self, in_dim, out_dim):
-                    super().__init__()
-                    
-                    # Multi-resolution reconstruction
-                    # Low-res: 8x8, Mid-res: 16x16, High-res: 32x32, Full-res: 64x64
-                    self.low_res_head = nn.Sequential(
-                        nn.Linear(in_dim, 8*8*3),
-                        nn.LayerNorm(8*8*3),
-                        nn.GELU()
-                    )
-                    
-                    self.mid_res_head = nn.Sequential(
-                        nn.Linear(in_dim + 8*8*3, 16*16*3),  # Include low-res info
-                        nn.LayerNorm(16*16*3),
-                        nn.GELU()
-                    )
-                    
-                    self.high_res_head = nn.Sequential(
-                        nn.Linear(in_dim + 16*16*3, 32*32*3),  # Include mid-res info
-                        nn.LayerNorm(32*32*3),
-                        nn.GELU()
-                    )
-                    
-                    self.full_res_head = nn.Sequential(
-                        nn.Linear(in_dim + 32*32*3, out_dim),  # Include high-res info
-                        nn.Tanh()
-                    )
-                    
                 def forward(self, x):
-                    # Progressive reconstruction from coarse to fine
-                    low_res = self.low_res_head(x)
-                    
-                    # Concatenate previous resolution with input
-                    mid_input = torch.cat([x, low_res], dim=-1)
-                    mid_res = self.mid_res_head(mid_input)
-                    
-                    high_input = torch.cat([x, mid_res], dim=-1)
-                    high_res = self.high_res_head(high_input)
-                    
-                    full_input = torch.cat([x, high_res], dim=-1)
-                    full_res = self.full_res_head(full_input)
-                    
-                    return full_res
+                    # x shape: [B*T*Num_objects, decoder_embed_dim] = [B*T*11, 384]
+                    x = self.fc(x)                # [B*T*Num_objects, 128*8*8]
+                    x = x.view(-1, 128, 8, 8)     # [B*T*Num_objects, 128, 8, 8]
+                    x = self.decoder(x)           # [B*T*Num_objects, 3, 64, 64]
+                    return x
+
+            mlp_out = SimpleCNNDecoder()
             
-            # mlp_out = HierarchicalReconstructor(self.decoder_embed_dim, out_dim)
-            """
+            
             # CNN-based decoder for efficient image reconstruction
             # Start from 1x1 feature maps and upsample to full image
             # mlp_out = nn.Sequential(
