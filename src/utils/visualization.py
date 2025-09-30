@@ -192,30 +192,14 @@ def plot_images_vs_recons(rgbs, recons, num_sequences=5, frames_per_sequence=8):
     
     
 def plot_predictor_images(input_images, target_images, recons):
+    """
+    Plot input images, target images, and reconstructed images in a single grid with 3 rows.
     
-    # Plot input images
-    fig, axes = plt.subplots(1, input_images.shape[1], figsize=(input_images.shape[1]*3, 3))
-    for i in range(input_images.shape[1]):
-        ax = axes[i] if input_images.shape[1] > 1 else axes
-        img = input_images[0, i].detach().cpu().permute(1, 2, 0).numpy()
-        ax.imshow(img)
-        ax.set_title(f"Input {i+1}")
-        ax.axis('off')
-    plt.suptitle("Input Images")
-    plt.show()
-
-    # Plot target images
-    fig, axes = plt.subplots(1, target_images.shape[1], figsize=(target_images.shape[1]*3, 3))
-    for i in range(target_images.shape[1]):
-        ax = axes[i] if target_images.shape[1] > 1 else axes
-        img = target_images[0, i].detach().cpu().permute(1, 2, 0).numpy()
-        ax.imshow(img)
-        ax.set_title(f"Target {i+1}")
-        ax.axis('off')
-    plt.suptitle("Target Images")
-    plt.show()
-
-    # Plot the reconstructed images from the holistic predictor
+    Args:
+        input_images: Input tensor of shape [B, T, C, H, W]
+        target_images: Target tensor of shape [B, T, C, H, W]
+        recons: Reconstructed tensor of shape [B, T, C, H, W]
+    """
     def quantile_0_1(img):
         # img: numpy array, shape [H, W, C] or [C, H, W]
         q_min = np.quantile(img, 0.0)
@@ -227,19 +211,49 @@ def plot_predictor_images(input_images, target_images, recons):
         img = np.clip(img, 0, 1)
         return img
 
+    # Get number of frames
+    n_frames = input_images.shape[1]
+    
+    # Create figure with 3 rows (input, target, recon) and n_frames columns
+    fig, axes = plt.subplots(3, n_frames, figsize=(n_frames * 3, 9))
+    
+    # Row titles
+    row_titles = ['Input Images', 'Target Images', 'Reconstructed Images']
+    
+    # Plot input images (first row)
+    for i in range(n_frames):
+        img = input_images[0, i].detach().cpu().permute(1, 2, 0).numpy()
+        axes[0, i].imshow(img)
+        axes[0, i].set_title(f"Input {i+1}")
+        axes[0, i].axis('off')
+    
+    # Plot target images (second row)
+    for i in range(n_frames):
+        img = target_images[0, i].detach().cpu().permute(1, 2, 0).numpy()
+        axes[1, i].imshow(img)
+        axes[1, i].set_title(f"Target {i+1}")
+        axes[1, i].axis('off')
+    
+    # Plot reconstructed images (third row)
     if recons.ndim == 5:
-        fig, axes = plt.subplots(1, recons.shape[1], figsize=(recons.shape[1]*3, 3))
-        for i in range(recons.shape[1]):
-            ax = axes[i] if recons.shape[1] > 1 else axes
+        for i in range(n_frames):
             img = recons[0, i].detach().cpu().permute(1, 2, 0).numpy()
             img = quantile_0_1(img)
-            ax.imshow(img)
-            ax.set_title(f"Recon {i+1}")
-            ax.axis('off')
-        plt.suptitle("Reconstructed Images")
-        plt.show()
+            axes[2, i].imshow(img)
+            axes[2, i].set_title(f"Prediction {i+1}")
+            axes[2, i].axis('off')
     else:
         print("Reconstructed output is not in image format and cannot be plotted directly.")
+        for i in range(n_frames):
+            axes[2, i].axis('off')
+    
+    # Add row labels
+    for idx, title in enumerate(row_titles):
+        fig.text(0.02, 0.75 - idx * 0.33, title, rotation=90, fontsize=12)
+    
+    plt.suptitle("Predictor Images Comparison", fontsize=14)
+    plt.tight_layout()
+    plt.show()
 
  
     
