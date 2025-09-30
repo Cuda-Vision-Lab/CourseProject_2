@@ -240,3 +240,148 @@ def plot_predictor_images(input_images, target_images, recons):
         plt.show()
     else:
         print("Reconstructed output is not in image format and cannot be plotted directly.")
+
+ 
+    
+def plot_transform_comparison(
+    rgbs_orig, masks_orig, flows_orig, coords_orig,
+    rgbs_trans, masks_trans, flows_trans, coords_trans,
+    n_rows=6, figsize=(16, 12), sequence_idx=0):
+    """
+    Plots a sequence comparison: Original vs Transformed frames with RGB, Flow, Mask, and RGB+BBox.
+    """
+    title = f'Sequence Comparison: Original (Left) vs Transformed (Right)'
+    fig, axes = plt.subplots(n_rows, 8, figsize=figsize)  # 8 columns: 4 orig + 4 trans
+
+    for ax in axes.flat:
+        ax.axis("off")
+
+    fig.suptitle(title, fontsize=14, y=0.98)
+    
+    # Add column headers
+    col_headers = ['RGB (Orig)', 'Flow (Orig)', 'Mask (Orig)', 'RGB+BBox (Orig)',
+                   'RGB (Trans)', 'Flow (Trans)', 'Mask (Trans)', 'RGB+BBox (Trans)']
+    
+    for col, header in enumerate(col_headers):
+        axes[0, col].set_title(header, fontsize=10, pad=10)
+
+    # Plot every 4th frame to show sequence progression
+    for i in range(n_rows):
+        frame_idx = i * 4  # Show frames 0, 4, 8, 12, 16, 20
+        
+        if frame_idx >= len(rgbs_orig):
+            break
+
+        # === ORIGINAL DATA (Left 4 columns) ===
+        rgb_orig = rgbs_orig[frame_idx]
+        flow_orig = flows_orig[frame_idx]
+        mask_orig = masks_orig['masks'][frame_idx]
+        bbox_orig = coords_orig['bbox'][frame_idx]
+
+        # Original RGB
+        rgb_display_orig = rgb_orig.clamp(0, 255) / 255.0
+        axes[i, 0].imshow(rgb_display_orig.permute(1, 2, 0).cpu().numpy())
+        axes[i, 0].set_aspect('auto')
+
+        # Original Flow
+        flow_display_orig = flow_orig.clamp(0, 255) / 255.0
+        axes[i, 1].imshow(flow_display_orig.permute(1, 2, 0).cpu().numpy())
+        axes[i, 1].set_aspect('auto')
+
+        # Original Mask
+        axes[i, 2].imshow(mask_orig.cpu().numpy(), cmap='gray')
+        axes[i, 2].set_aspect('auto')
+
+        # Original RGB + BBox
+        rgb_np_orig = rgb_orig.clamp(0, 255).permute(1, 2, 0).byte().cpu().numpy().copy()
+        for b in bbox_orig:
+            h, w = rgb_np_orig.shape[:2]
+            x0, y0, x1, y1 = map(int, [max(0, min(w-1, b[0])), max(0, min(h-1, b[1])),
+                                       max(0, min(w-1, b[2])), max(0, min(h-1, b[3]))])
+            if x1 > x0 and y1 > y0:
+                rgb_np_orig[y0:y1, x0:min(x0+2, w)] = [255, 0, 0]
+                rgb_np_orig[y0:y1, max(x1-2, 0):x1] = [255, 0, 0]
+                rgb_np_orig[y0:min(y0+2, h), x0:x1] = [255, 0, 0]
+                rgb_np_orig[max(y1-2, 0):y1, x0:x1] = [255, 0, 0]
+        axes[i, 3].imshow(rgb_np_orig)
+        axes[i, 3].set_aspect('auto')
+
+        # === TRANSFORMED DATA (Right 4 columns) ===
+        rgb_trans = rgbs_trans[frame_idx]
+        flow_trans = flows_trans[frame_idx]
+        mask_trans = masks_trans['masks'][frame_idx]
+        bbox_trans = coords_trans['bbox'][frame_idx]
+
+        # Transformed RGB (handle normalization)
+        if rgb_trans.max() <= 1.0:
+            rgb_display_trans = rgb_trans.clamp(0, 1)
+        else:
+            rgb_display_trans = rgb_trans.clamp(0, 255) / 255.0
+        axes[i, 4].imshow(rgb_display_trans.permute(1, 2, 0).cpu().numpy())
+        axes[i, 4].set_aspect('auto')
+
+        # Transformed Flow (handle normalization)
+        if flow_trans.max() <= 1.0:
+            flow_display_trans = flow_trans.clamp(0, 1)
+        else:
+            flow_display_trans = flow_trans.clamp(0, 255) / 255.0
+        axes[i, 5].imshow(flow_display_trans.permute(1, 2, 0).cpu().numpy())
+        axes[i, 5].set_aspect('auto')
+
+        # Transformed Mask
+        axes[i, 6].imshow(mask_trans.cpu().numpy(), cmap='gray')
+        axes[i, 6].set_aspect('auto')
+
+        # Transformed RGB + BBox
+        if rgb_trans.max() <= 1.0:
+            rgb_np_trans = (rgb_trans.clamp(0, 1) * 255).permute(1, 2, 0).byte().cpu().numpy().copy()
+        else:
+            rgb_np_trans = rgb_trans.clamp(0, 255).permute(1, 2, 0).byte().cpu().numpy().copy()
+
+        for b in bbox_trans:
+            h, w = rgb_np_trans.shape[:2]
+            x0, y0, x1, y1 = map(int, [max(0, min(w-1, b[0])), max(0, min(h-1, b[1])),
+                                       max(0, min(w-1, b[2])), max(0, min(h-1, b[3]))])
+            if x1 > x0 and y1 > y0:
+                rgb_np_trans[y0:y1, x0:min(x0+2, w)] = [255, 0, 0]
+                rgb_np_trans[y0:y1, max(x1-2, 0):x1] = [255, 0, 0]
+                rgb_np_trans[y0:min(y0+2, h), x0:x1] = [255, 0, 0]
+                rgb_np_trans[max(y1-2, 0):y1, x0:x1] = [255, 0, 0]
+        axes[i, 7].imshow(rgb_np_trans)
+        axes[i, 7].set_aspect('auto')
+
+    plt.tight_layout()
+    plt.show()
+    
+def plot_object_frames(rgbs, object_frames, batch_idx, time_idx):
+    """
+    Plots the original image and the extracted object frames for a given batch and time index.
+
+    Args:
+        rgbs: Tensor of shape [B, T, C, H, W]
+        object_frames: Tensor of shape [B, T, num_objects, C, H, W]
+        batch_idx: int, index of the batch to plot
+        time_idx: int, index of the time step to plot
+    """
+    num_objects = object_frames.shape[2]
+
+    # Plot the original image
+    plt.figure(figsize=(3, 3))
+    plt.imshow(rgbs[batch_idx, time_idx].permute(1, 2, 0).cpu().numpy())
+    plt.title("Original Image")
+    plt.axis("off")
+    plt.show()
+
+    plt.figure(figsize=(3 * num_objects, 3))
+    for obj_id in range(num_objects):
+        obj_img = object_frames[batch_idx, time_idx, obj_id]  # shape: [C, H, W]
+        plt.subplot(1, num_objects, obj_id + 1)
+        # If the object frame is all zeros, skip displaying
+        if obj_img.abs().sum() == 0:
+            plt.title(f"Object {obj_id}\n(empty)")
+            plt.axis("off")
+            continue
+        plt.imshow(obj_img.permute(1, 2, 0).cpu().numpy())
+        plt.title(f"Object {obj_id+1}")
+        plt.axis("off")
+    plt.show()
