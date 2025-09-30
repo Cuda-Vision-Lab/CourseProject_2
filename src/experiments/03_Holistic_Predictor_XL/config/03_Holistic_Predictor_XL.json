@@ -1,0 +1,50 @@
+{
+    "data": {
+        "dataset_path": "/home/nfs/inf6/data/datasets/MOVi/movi_c/",
+        "batch_size": 16,
+        "patch_size": 16,
+        "max_objects": 11,
+        "num_workers": 8,
+        "image_height": 128,
+        "image_width": 128
+    },
+    "training": {
+        "train": {
+            "shuffle": false,
+            "transforms": "train"
+        },
+        "validation": {
+            "shuffle": false,
+            "transforms": "validation"
+        },
+        "num_epochs": 300,
+        "warmup_epochs": 10,
+        "early_stopping_patience": 15,
+        "model_name": "03_Holistic_Predictor_XL",
+        "lr": 0.0005,
+        "save_frequency": 25,
+        "use_scheduler": true,
+        "use_early_stopping": true,
+        "use_transforms": false,
+        "use_amp": true,
+        "root": "/home/user/soltania1/CourseProject_2/src"
+    },
+    "vit_cfg": {
+        "encoder_embed_dim": 512,
+        "decoder_embed_dim": 384,
+        "max_len": 64,
+        "in_out_channels": 3,
+        "use_masks": true,
+        "use_bboxes": false,
+        "attn_dim": 128,
+        "num_heads": 8,
+        "mlp_size": 1024,
+        "encoder_depth": 12,
+        "decoder_depth": 8,
+        "predictor_depth": 8,
+        "num_preds": 5,
+        "predictor_window_size": 5,
+        "predictor_embed_dim": 256,
+        "residual": true
+    }
+}
