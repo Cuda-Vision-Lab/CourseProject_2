@@ -189,3 +189,54 @@ def plot_images_vs_recons(rgbs, recons, num_sequences=5, frames_per_sequence=8):
     all_recons_imgs = torch.cat(recons_imgs_list, dim=0)
     total_images = all_orig_imgs.shape[0]
     plot_images_(all_orig_imgs, all_recons_imgs, num_images=total_images)
+    
+    
+def plot_predictor_images(input_images, target_images, recons):
+    
+    # Plot input images
+    fig, axes = plt.subplots(1, input_images.shape[1], figsize=(input_images.shape[1]*3, 3))
+    for i in range(input_images.shape[1]):
+        ax = axes[i] if input_images.shape[1] > 1 else axes
+        img = input_images[0, i].detach().cpu().permute(1, 2, 0).numpy()
+        ax.imshow(img)
+        ax.set_title(f"Input {i+1}")
+        ax.axis('off')
+    plt.suptitle("Input Images")
+    plt.show()
+
+    # Plot target images
+    fig, axes = plt.subplots(1, target_images.shape[1], figsize=(target_images.shape[1]*3, 3))
+    for i in range(target_images.shape[1]):
+        ax = axes[i] if target_images.shape[1] > 1 else axes
+        img = target_images[0, i].detach().cpu().permute(1, 2, 0).numpy()
+        ax.imshow(img)
+        ax.set_title(f"Target {i+1}")
+        ax.axis('off')
+    plt.suptitle("Target Images")
+    plt.show()
+
+    # Plot the reconstructed images from the holistic predictor
+    def quantile_0_1(img):
+        # img: numpy array, shape [H, W, C] or [C, H, W]
+        q_min = np.quantile(img, 0.0)
+        q_max = np.quantile(img, 1.0)
+        if q_max > q_min:
+            img = (img - q_min) / (q_max - q_min)
+        else:
+            img = np.zeros_like(img)
+        img = np.clip(img, 0, 1)
+        return img
+
+    if recons.ndim == 5:
+        fig, axes = plt.subplots(1, recons.shape[1], figsize=(recons.shape[1]*3, 3))
+        for i in range(recons.shape[1]):
+            ax = axes[i] if recons.shape[1] > 1 else axes
+            img = recons[0, i].detach().cpu().permute(1, 2, 0).numpy()
+            img = quantile_0_1(img)
+            ax.imshow(img)
+            ax.set_title(f"Recon {i+1}")
+            ax.axis('off')
+        plt.suptitle("Reconstructed Images")
+        plt.show()
+    else:
+        print("Reconstructed output is not in image format and cannot be plotted directly.")
