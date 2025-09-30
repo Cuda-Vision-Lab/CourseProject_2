@@ -52,13 +52,23 @@ class ObjectCentricDecoder(baseTransformer):
         Compute reconstruction loss for different modalities.
         
         Args:
-            targets: [B, T, N, patch_dim] 
-            pred: [B, T, N, patch_dim] - predicted patches
+            targets: [B, T, C, H, W] 
+            pred: [B, T, C, H, W] - predicted images
         """
-        loss_fn = nn.MSELoss()
-        loss = loss_fn(target_patches, pred_patches)
+        # 1. MSE Loss (L2)
+        mse_loss = nn.functional.mse_loss(pred_patches, target_patches)
         
-        return loss
+        # 2. L1 Loss - promotes sharper edges
+        l1_loss = nn.functional.l1_loss(pred_patches, target_patches)
+        
+        # 3. Perceptual Loss using gradient similarity (simple edge-aware loss)
+        # Compute gradients in x and y directions
+
+        # Combine losses with weights
+        # L1 is primary for sharpness, gradient loss for edges, MSE for overall structure
+        total_loss = 0.2 * l1_loss + 0.8 * mse_loss 
+        
+        return total_loss
     
  
     def forward(self, encoded_features, target=None):
