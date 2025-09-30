@@ -100,14 +100,3 @@ class MOVIC(Dataset):
 
     def __len__(self):
         return len(self.masks)
-
-
-    # def get_video_frame_labels(self, com, bbox, masks, rgbs, flows):
-    #     '''
-    #     outputs 24 entries, each of which corresponds to data of a frame data.
-    #     '''
-    #     output=[]
-    #     for i in range(com.shape[0]):
-    #         output.append((com[i], bbox[i], masks[i], rgbs[i], flows[i]))
-        
-    #     return output 
